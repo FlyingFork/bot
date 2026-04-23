@@ -60,9 +60,8 @@ jobs:
             echo "${{ secrets.VPS_ENV_PRODUCTION }}" > .env
 
             npm ci
-            npm run build
-
             npx prisma generate
+            npm run build
 
             sudo /bin/systemctl restart "${{ secrets.VPS_SERVICE_NAME }}"
             sudo /bin/systemctl is-active "${{ secrets.VPS_SERVICE_NAME }}"
