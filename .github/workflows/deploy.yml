@@ -59,7 +59,7 @@ jobs:
             # Write environment file used by the bot process.
             echo "${{ secrets.VPS_ENV_PRODUCTION }}" > .env
 
-            npm ci
+            npm install
             npx prisma generate
 
             sudo /bin/systemctl restart "${{ secrets.VPS_SERVICE_NAME }}"
