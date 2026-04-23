@@ -1,0 +1,37 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// A group of channels that translate messages between each other.
+model ChannelGroup {
+  id        String               @id @default(uuid())
+  guildId   String
+  createdAt DateTime             @default(now())
+  members   ChannelGroupMember[]
+}
+
+// One channel slot inside a ChannelGroup, with its target language.
+model ChannelGroupMember {
+  id           String       @id @default(uuid())
+  groupId      String
+  channelId    String
+  languageCode String
+  group        ChannelGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  // A channel can appear only once per group.
+  @@unique([channelId, groupId])
+}
+
+// Stores the webhook used to impersonate users when forwarding translations.
+model ChannelWebhook {
+  id           String   @id @default(uuid())
+  channelId    String   @unique
+  webhookId    String
+  webhookToken String
+  createdAt    DateTime @default(now())
+}

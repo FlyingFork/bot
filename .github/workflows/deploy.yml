@@ -1,0 +1,70 @@
+name: Deploy Bot to VPS
+
+on:
+	push:
+		branches: [main]
+
+concurrency:
+	group: deploy-production
+	cancel-in-progress: false
+
+env:
+	NODE_VERSION: '24'
+
+jobs:
+	deploy:
+		runs-on: ubuntu-latest
+
+		steps:
+			- name: Checkout
+				uses: actions/checkout@v4
+
+			- name: Setup Node.js
+				uses: actions/setup-node@v4
+				with:
+					node-version: ${{ env.NODE_VERSION }}
+					cache: 'npm'
+
+			- name: Install dependencies
+				run: npm ci
+
+			- name: Build
+				run: npm run build
+
+			- name: Setup SSH
+				run: |
+					mkdir -p ~/.ssh
+					echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+					chmod 600 ~/.ssh/deploy_key
+					ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+
+			- name: Upload files to VPS
+				run: |
+					rsync -avz --delete \
+						--exclude ".git" \
+						--exclude ".github" \
+						--exclude "node_modules" \
+						-e "ssh -i ~/.ssh/deploy_key" \
+						./ "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.VPS_APP_PATH }}/"
+
+			- name: Install, migrate, and restart service
+				run: |
+					ssh -i ~/.ssh/deploy_key "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" << 'ENDSSH'
+						set -e
+
+						export NVM_DIR="$HOME/.nvm"
+						[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+
+						cd "${{ secrets.VPS_APP_PATH }}"
+
+						# Write environment file used by the bot process.
+						echo "${{ secrets.VPS_ENV_PRODUCTION }}" > .env
+
+						npm ci
+						npm run build
+
+						npx prisma generate
+
+						sudo /bin/systemctl restart "${{ secrets.VPS_SERVICE_NAME }}"
+						sudo /bin/systemctl is-active "${{ secrets.VPS_SERVICE_NAME }}"
+					ENDSSH
