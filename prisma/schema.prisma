@@ -57,3 +57,18 @@ model TranslationEvent {
   @@index([guildId, kind, createdAt])
   @@index([guildId, targetLanguage, createdAt])
 }
+
+// Singleton bot presence configuration used by /set_status.
+model BotStatusConfig {
+  id                         String    @id @default("global")
+  enabled                    Boolean   @default(false)
+  activityType               String
+  message                    String
+  countdownTargetAt          DateTime?
+  languageCodesJson          String    @default("[]")
+  translationIntervalSeconds Int       @default(30)
+  currentLanguageIndex       Int       @default(0)
+  updatedAt                  DateTime  @updatedAt
+
+  @@map("bot_status_config")
+}

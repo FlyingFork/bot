@@ -1,12 +1,8 @@
 import {
   SlashCommandBuilder,
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
-  ActionRowBuilder,
   EmbedBuilder,
   ChatInputCommandInteraction,
-  TextChannel,
+  ChannelType,
 } from "discord.js";
 import { Command } from "@/types/index";
 import db from "@/utils/db";
@@ -15,116 +11,100 @@ import { isLanguageSupported } from "@/utils/translate";
 const command: Command = {
   data: new SlashCommandBuilder()
     .setName("link-channels")
-    .setDescription("Link channels into a translation group"),
+    .setDescription("Create a translation group with exactly two channels")
+    .addChannelOption((option) =>
+      option
+        .setName("channel_one")
+        .setDescription("First text channel")
+        .addChannelTypes(ChannelType.GuildText)
+        .setRequired(true),
+    )
+    .addStringOption((option) =>
+      option
+        .setName("language_one")
+        .setDescription("Language code for the first channel")
+        .setRequired(true),
+    )
+    .addChannelOption((option) =>
+      option
+        .setName("channel_two")
+        .setDescription("Second text channel")
+        .addChannelTypes(ChannelType.GuildText)
+        .setRequired(true),
+    )
+    .addStringOption((option) =>
+      option
+        .setName("language_two")
+        .setDescription("Language code for the second channel")
+        .setRequired(true),
+    ) as SlashCommandBuilder,
   requiredRoles: ["R4", "R5"],
 
   async execute(interaction: ChatInputCommandInteraction) {
-    const modal = new ModalBuilder()
-      .setCustomId("link-channels-modal")
-      .setTitle("Link Translation Channels");
+    await interaction.deferReply({ ephemeral: true });
 
-    const pairsInput = new TextInputBuilder()
-      .setCustomId("pairs")
-      .setLabel("Channel ID : Language Code (one per line)")
-      .setStyle(TextInputStyle.Paragraph)
-      .setPlaceholder(
-        "123456789012345678:en\n987654321098765432:ru\n876543210987654321:de",
-      )
-      .setRequired(true);
+    const channelOne = interaction.options.getChannel("channel_one", true);
+    const channelTwo = interaction.options.getChannel("channel_two", true);
+    const languageOne = interaction.options
+      .getString("language_one", true)
+      .trim()
+      .toLowerCase();
+    const languageTwo = interaction.options
+      .getString("language_two", true)
+      .trim()
+      .toLowerCase();
 
-    modal.addComponents(
-      new ActionRowBuilder<TextInputBuilder>().addComponents(pairsInput),
-    );
-    await interaction.showModal(modal);
-
-    const submission = await interaction
-      .awaitModalSubmit({
-        time: 5 * 60_000,
-        filter: (i) =>
-          i.customId === "link-channels-modal" &&
-          i.user.id === interaction.user.id,
-      })
-      .catch(() => null);
-
-    if (!submission) return;
-
-    await submission.deferReply({ ephemeral: true });
-
-    const raw = submission.fields.getTextInputValue("pairs");
-    const lines = raw
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean);
-
-    // ── Parse and validate each line ─────────────────────────────────────────
-    const errors: string[] = [];
-    const validated: { channelId: string; lang: string }[] = [];
-
-    for (const line of lines) {
-      const [channelId, lang] = line.split(":").map((s) => s.trim());
-
-      if (!channelId || !lang) {
-        errors.push(`"${line}" — must be in the format channelId:languageCode`);
-        continue;
-      }
-
-      // Verify the channel exists and is a text channel.
-      const channel = interaction.guild?.channels.cache.get(channelId);
-      if (!channel || !(channel instanceof TextChannel)) {
-        errors.push(`${channelId} — not a valid text channel in this guild`);
-        continue;
-      }
-
-      if (!isLanguageSupported(lang)) {
-        errors.push(
-          `${channelId}:${lang} — "${lang}" is not a supported language code`,
-        );
-        continue;
-      }
-
-      validated.push({ channelId, lang });
-    }
-
-    if (validated.length === 0) {
-      await submission.editReply({
-        content: `No valid entries found:\n${errors.map((e) => `• ${e}`).join("\n")}`,
+    if (channelOne.id === channelTwo.id) {
+      await interaction.editReply({
+        content: "Please provide two different channels.",
       });
       return;
     }
 
-    // ── Check that none of these channels already belong to a group ──────────
+    if (
+      !isLanguageSupported(languageOne) ||
+      !isLanguageSupported(languageTwo)
+    ) {
+      await interaction.editReply({
+        content:
+          "Invalid language code. Supported languages are `en`, `ru`, and `de`.",
+      });
+      return;
+    }
+
     const existingMembers = await db.channelGroupMember.findMany({
-      where: { channelId: { in: validated.map((v) => v.channelId) } },
+      where: { channelId: { in: [channelOne.id, channelTwo.id] } },
       include: { group: true },
     });
 
-    for (const existing of existingMembers) {
-      errors.push(
-        `${existing.channelId} — already belongs to group ${existing.groupId} in guild ${existing.group.guildId}`,
-      );
-    }
-
-    const takenIds = new Set(
-      existingMembers.map((m: { channelId: any }) => m.channelId),
-    );
-    const clean = validated.filter((v) => !takenIds.has(v.channelId));
-
-    if (clean.length < 2) {
-      await submission.editReply({
-        content: `Need at least 2 free channels to create a group.\n${errors.map((e) => `• ${e}`).join("\n")}`,
+    if (existingMembers.length > 0) {
+      await interaction.editReply({
+        content:
+          "One or more channels are already linked to a group:\n" +
+          existingMembers
+            .map(
+              (existing) =>
+                `• <#${existing.channelId}> already belongs to group \`${existing.groupId}\``,
+            )
+            .join("\n"),
       });
       return;
     }
 
-    // Report partial validation failures but still proceed with valid entries.
     const group = await db.channelGroup.create({
       data: {
         guildId: interaction.guildId!,
         members: {
-          create: clean.map((v) => ({
-            channelId: v.channelId,
-            languageCode: v.lang,
-          })),
+          create: [
+            {
+              channelId: channelOne.id,
+              languageCode: languageOne,
+            },
+            {
+              channelId: channelTwo.id,
+              languageCode: languageTwo,
+            },
+          ],
         },
       },
       include: { members: true },
@@ -147,15 +127,7 @@ const command: Command = {
         },
       );
 
-    if (errors.length > 0) {
-      embed.addFields({
-        name: "Skipped Entries",
-        value: errors.map((e) => `• ${e}`).join("\n"),
-        inline: false,
-      });
-    }
-
-    await submission.editReply({ embeds: [embed] });
+    await interaction.editReply({ embeds: [embed] });
   },
 };
 
