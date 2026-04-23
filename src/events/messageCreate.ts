@@ -1,8 +1,8 @@
-import { Message, TextChannel, AttachmentPayload } from 'discord.js';
-import { BotEvent } from '@/types/index';
-import db from '@/utils/db';
-import { translateText, detectLanguage } from '@/utils/translate';
-import { getOrCreateWebhook } from '@/utils/webhook';
+import { Message, TextChannel, AttachmentPayload } from "discord.js";
+import { BotEvent } from "@/types/index";
+import db from "@/utils/db";
+import { translateText, detectLanguage } from "@/utils/translate";
+import { getOrCreateWebhook } from "@/utils/webhook";
 
 // Minimum language detection confidence required to act on a mismatch.
 const CONFIDENCE_THRESHOLD = 0.85;
@@ -12,12 +12,12 @@ const CONFIDENCE_THRESHOLD = 0.85;
 function buildAttachments(message: Message): AttachmentPayload[] {
   return message.attachments.map((att) => ({
     attachment: att.url,
-    name: att.name ?? 'file',
+    name: att.name ?? "file",
   }));
 }
 
-const event: BotEvent<'messageCreate'> = {
-  name: 'messageCreate',
+const event: BotEvent<"messageCreate"> = {
+  name: "messageCreate",
 
   async execute(message: Message) {
     // ── Ignore bots and webhook-forwarded messages (prevents translation loops) ──
@@ -36,12 +36,17 @@ const event: BotEvent<'messageCreate'> = {
     });
     if (!group) return;
 
-    const siblings = group.members.filter((m) => m.channelId !== message.channelId);
+    const siblings = group.members.filter(
+      (m) => m.channelId !== message.channelId,
+    );
     if (siblings.length === 0) return;
 
     const sourceLanguage = sourceMember.languageCode;
     const hasText = message.content.trim().length > 0;
     const attachments = buildAttachments(message);
+
+    // Use member's nickname if available, otherwise fall back to Discord name
+    const displayName = message.member?.nickname ?? message.author.displayName;
 
     // ── Language detection ────────────────────────────────────────────────────
     // Skip detection entirely if there is no text content (image-only, audio, etc.)
@@ -55,16 +60,22 @@ const event: BotEvent<'messageCreate'> = {
     //   - there is no text to detect on
     //   - detection confidence is below the threshold
     //   - the detected language matches the channel's expected language
-    const confidenceOk = detected !== null && detected.confidence >= CONFIDENCE_THRESHOLD;
+    const confidenceOk =
+      detected !== null && detected.confidence >= CONFIDENCE_THRESHOLD;
     const languageMismatch = confidenceOk && detected!.lang !== sourceLanguage;
 
     // ── Correct language mismatch in the source channel ───────────────────────
     // Delete the original and repost a translated version via webhook.
     if (languageMismatch) {
       // Delete original — if it fails (missing permissions) log and continue.
-      await message.delete().catch((err) =>
-        console.error(`[messageCreate] Failed to delete message ${message.id}:`, err),
-      );
+      await message
+        .delete()
+        .catch((err) =>
+          console.error(
+            `[messageCreate] Failed to delete message ${message.id}:`,
+            err,
+          ),
+        );
 
       try {
         const sourceChannel = message.channel as TextChannel;
@@ -72,54 +83,65 @@ const event: BotEvent<'messageCreate'> = {
 
         // Translate to the channel's expected language; voice messages carry no text.
         const correctedText = hasText
-          ? await translateText(message.content, sourceLanguage).catch((err) => {
-              console.error('[messageCreate] Source translation failed:', err);
-              return message.content; // fallback to original
-            })
-          : '';
+          ? await translateText(message.content, sourceLanguage).catch(
+              (err) => {
+                console.error(
+                  "[messageCreate] Source translation failed:",
+                  err,
+                );
+                return message.content; // fallback to original
+              },
+            )
+          : "";
 
         await sourceWebhook.send({
           content: correctedText || undefined,
-          username: message.author.displayName,
+          username: displayName,
           avatarURL: message.author.displayAvatarURL(),
           ...(attachments.length > 0 ? { files: attachments } : {}),
         });
       } catch (err) {
-        console.error('[messageCreate] Failed to repost corrected message in source channel:', err);
+        console.error(
+          "[messageCreate] Failed to repost corrected message in source channel:",
+          err,
+        );
       }
     }
 
     // ── Forward (with translation) to every sibling channel ──────────────────
     for (const sibling of siblings) {
       try {
-        const siblingChannel = message.client.channels.cache.get(sibling.channelId) as
-          | TextChannel
-          | undefined;
+        const siblingChannel = message.client.channels.cache.get(
+          sibling.channelId,
+        ) as TextChannel | undefined;
 
         if (!siblingChannel) {
-          console.warn(`[messageCreate] Sibling channel ${sibling.channelId} not in cache.`);
+          console.warn(
+            `[messageCreate] Sibling channel ${sibling.channelId} not in cache.`,
+          );
           continue;
         }
 
         const webhook = await getOrCreateWebhook(siblingChannel);
 
         // Translate text content; skip translation for attachment-only messages.
-        let translatedText = '';
+        let translatedText = "";
         if (hasText) {
-          translatedText = await translateText(message.content, sibling.languageCode).catch(
-            (err) => {
-              console.error(
-                `[messageCreate] Translation to ${sibling.languageCode} failed:`,
-                err,
-              );
-              return message.content; // fallback to original
-            },
-          );
+          translatedText = await translateText(
+            message.content,
+            sibling.languageCode,
+          ).catch((err) => {
+            console.error(
+              `[messageCreate] Translation to ${sibling.languageCode} failed:`,
+              err,
+            );
+            return message.content; // fallback to original
+          });
         }
 
         await webhook.send({
           content: translatedText || undefined,
-          username: message.author.displayName,
+          username: displayName,
           avatarURL: message.author.displayAvatarURL(),
           ...(attachments.length > 0 ? { files: attachments } : {}),
         });
