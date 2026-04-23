@@ -61,7 +61,6 @@ jobs:
 
             npm ci
             npx prisma generate
-            npm run build
 
             sudo /bin/systemctl restart "${{ secrets.VPS_SERVICE_NAME }}"
             sudo /bin/systemctl is-active "${{ secrets.VPS_SERVICE_NAME }}"
