@@ -4,6 +4,8 @@ import db from "@/utils/db";
 import { translateText, detectLanguage } from "@/utils/translate";
 import { getOrCreateWebhook } from "@/utils/webhook";
 
+type TranslationEventKind = "FORWARDED" | "SOURCE_CORRECTION";
+
 // Minimum language detection confidence required to act on a mismatch.
 const CONFIDENCE_THRESHOLD = 0.85;
 
@@ -14,6 +16,24 @@ function buildAttachments(message: Message): AttachmentPayload[] {
     attachment: att.url,
     name: att.name ?? "file",
   }));
+}
+
+async function recordTranslationEvent(params: {
+  guildId: string;
+  sourceChannelId: string;
+  targetChannelId: string;
+  sourceMessageId: string;
+  sourceLanguage: string;
+  targetLanguage: string;
+  kind: TranslationEventKind;
+}): Promise<void> {
+  await db.translationEvent
+    .create({
+      data: params,
+    })
+    .catch((err) => {
+      console.error("[messageCreate] Failed to record translation event:", err);
+    });
 }
 
 const event: BotEvent<"messageCreate"> = {
@@ -41,6 +61,9 @@ const event: BotEvent<"messageCreate"> = {
     );
     if (siblings.length === 0) return;
 
+    const guildId = message.guildId;
+    if (!guildId) return;
+
     const sourceLanguage = sourceMember.languageCode;
     const hasText = message.content.trim().length > 0;
     const attachments = buildAttachments(message);
@@ -56,6 +79,8 @@ const event: BotEvent<"messageCreate"> = {
       detected = await detectLanguage(message.content);
     }
 
+    const detectedLanguage = detected?.lang ?? "unknown";
+
     // A message is considered "correct language" if:
     //   - there is no text to detect on
     //   - detection confidence is below the threshold
@@ -65,18 +90,9 @@ const event: BotEvent<"messageCreate"> = {
     const languageMismatch = confidenceOk && detected!.lang !== sourceLanguage;
 
     // ── Correct language mismatch in the source channel ───────────────────────
-    // Delete the original and repost a translated version via webhook.
+    // Repost a translated version via webhook first, then delete the original
+    // only after the corrected message is safely sent.
     if (languageMismatch) {
-      // Delete original — if it fails (missing permissions) log and continue.
-      await message
-        .delete()
-        .catch((err) =>
-          console.error(
-            `[messageCreate] Failed to delete message ${message.id}:`,
-            err,
-          ),
-        );
-
       try {
         const sourceChannel = message.channel as TextChannel;
         const sourceWebhook = await getOrCreateWebhook(sourceChannel);
@@ -100,6 +116,29 @@ const event: BotEvent<"messageCreate"> = {
           avatarURL: message.author.displayAvatarURL(),
           ...(attachments.length > 0 ? { files: attachments } : {}),
         });
+
+        // Delete original — if it fails (missing permissions), log and keep the
+        // corrected message so the content and attachments are not lost.
+        await message
+          .delete()
+          .catch((err) =>
+            console.error(
+              `[messageCreate] Failed to delete message ${message.id}:`,
+              err,
+            ),
+          );
+
+        if (hasText) {
+          await recordTranslationEvent({
+            guildId,
+            sourceChannelId: message.channelId,
+            targetChannelId: message.channelId,
+            sourceMessageId: message.id,
+            sourceLanguage: detectedLanguage,
+            targetLanguage: sourceLanguage,
+            kind: "SOURCE_CORRECTION",
+          });
+        }
       } catch (err) {
         console.error(
           "[messageCreate] Failed to repost corrected message in source channel:",
@@ -145,6 +184,18 @@ const event: BotEvent<"messageCreate"> = {
           avatarURL: message.author.displayAvatarURL(),
           ...(attachments.length > 0 ? { files: attachments } : {}),
         });
+
+        if (hasText) {
+          await recordTranslationEvent({
+            guildId,
+            sourceChannelId: message.channelId,
+            targetChannelId: sibling.channelId,
+            sourceMessageId: message.id,
+            sourceLanguage: detectedLanguage,
+            targetLanguage: sibling.languageCode,
+            kind: "FORWARDED",
+          });
+        }
       } catch (err) {
         // A single channel failure must not abort the rest.
         console.error(

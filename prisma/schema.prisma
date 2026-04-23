@@ -7,6 +7,11 @@ datasource db {
   provider = "postgresql"
 }
 
+enum TranslationEventKind {
+  FORWARDED
+  SOURCE_CORRECTION
+}
+
 // A group of channels that translate messages between each other.
 model ChannelGroup {
   id        String               @id @default(uuid())
@@ -34,4 +39,21 @@ model ChannelWebhook {
   webhookId    String
   webhookToken String
   createdAt    DateTime @default(now())
+}
+
+// Records successful translation sends so stats can be queried by time window.
+model TranslationEvent {
+  id              String               @id @default(uuid())
+  guildId         String
+  sourceChannelId String
+  targetChannelId String
+  sourceMessageId String
+  sourceLanguage  String
+  targetLanguage  String
+  kind            TranslationEventKind
+  createdAt       DateTime             @default(now())
+
+  @@index([guildId, createdAt])
+  @@index([guildId, kind, createdAt])
+  @@index([guildId, targetLanguage, createdAt])
 }
