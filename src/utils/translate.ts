@@ -174,6 +174,26 @@ function cacheSet(key: string, value: string): void {
   cache.set(key, value);
 }
 
+// ── URL masking helpers ───────────────────────────────────────────────────────
+
+const URL_REGEX = /https?:\/\/[^\s<>[\]{}|\\^`"]*[^\s<>[\]{}|\\^`".,;:!?()]/g;
+
+function maskUrls(text: string): { masked: string; urls: string[] } {
+  const urls: string[] = [];
+  const masked = text.replace(URL_REGEX, (url) => {
+    const idx = urls.push(url) - 1;
+    return `URLTOKEN${idx}URLTOKEN`;
+  });
+  return { masked, urls };
+}
+
+function restoreUrls(text: string, urls: string[]): string {
+  return text.replace(
+    /URLTOKEN(\d+)URLTOKEN/g,
+    (_, idx) => urls[Number(idx)] ?? _,
+  );
+}
+
 // ── Exported helpers ──────────────────────────────────────────────────────────
 
 /**
@@ -195,10 +215,12 @@ export async function translateText(
   const cached = cache.get(key);
   if (cached !== undefined) return cached;
 
+  const { masked, urls } = maskUrls(text);
+
   try {
     const client = getHttpClient();
     const payload = withApiKey({
-      q: text,
+      q: masked,
       source: "auto",
       target: normalizedTarget,
       format: "text",
@@ -213,8 +235,9 @@ export async function translateText(
       throw new Error("Invalid translate response shape.");
     }
 
-    cacheSet(key, translated);
-    return translated;
+    const result = restoreUrls(translated, urls);
+    cacheSet(key, result);
+    return result;
   } catch (err) {
     console.error(
       `[translate] Failed to translate to ${normalizedTarget}:`,
