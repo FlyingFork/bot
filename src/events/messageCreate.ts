@@ -178,7 +178,7 @@ const event: BotEvent<"messageCreate"> = {
           });
         }
 
-        await webhook.send({
+        const sent = await webhook.send({
           content: translatedText || undefined,
           username: displayName,
           avatarURL: message.author.displayAvatarURL(),
@@ -195,6 +195,24 @@ const event: BotEvent<"messageCreate"> = {
             targetLanguage: sibling.languageCode,
             kind: "FORWARDED",
           });
+        }
+
+        if (!languageMismatch) {
+          await db.forwardedMessage
+            .create({
+              data: {
+                sourceMessageId: message.id,
+                sourceChannelId: message.channelId,
+                targetChannelId: sibling.channelId,
+                webhookMessageId: sent.id,
+              },
+            })
+            .catch((err) =>
+              console.error(
+                `[messageCreate] Failed to record ForwardedMessage for ${message.id}:`,
+                err,
+              ),
+            );
         }
       } catch (err) {
         // A single channel failure must not abort the rest.

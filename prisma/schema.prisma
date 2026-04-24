@@ -58,6 +58,19 @@ model TranslationEvent {
   @@index([guildId, targetLanguage, createdAt])
 }
 
+// Maps an original message to each webhook copy forwarded to a sibling channel.
+// Used to keep webhook copies in sync when the original is edited or deleted.
+model ForwardedMessage {
+  id               String   @id @default(uuid())
+  sourceMessageId  String
+  sourceChannelId  String
+  targetChannelId  String
+  webhookMessageId String
+  createdAt        DateTime @default(now())
+
+  @@index([sourceMessageId])
+}
+
 // Singleton bot presence configuration used by /set_status.
 model BotStatusConfig {
   id                         String    @id @default("global")
