@@ -8,13 +8,10 @@ const command: Command = {
     .setDescription("R4/R5 ping command"),
   requiredRoles: ["R4", "R5"],
   async execute(interaction) {
-    await interaction.reply({
-      content: "Pinging...",
-      ephemeral: true,
-    });
-    const sent = await interaction.fetchReply();
-    const latency = sent.createdTimestamp - interaction.createdTimestamp;
+    // D4: deferReply + editReply avoids the reply→fetchReply double round-trip
+    await interaction.deferReply({ ephemeral: true });
     const health = await checkLibreTranslateHealth();
+    const latency = Date.now() - interaction.createdTimestamp;
 
     const libStatus = health.ok ? "OK" : "FAIL";
     const missing =

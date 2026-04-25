@@ -5,6 +5,16 @@ import db from "@/utils/db";
 
 const FORWARDED_MSG_TTL_MS = 48 * 60 * 60 * 1000; // 48 hours
 
+// M2: retain handle so graceful shutdown can cancel the interval
+let cleanupInterval: NodeJS.Timeout | null = null;
+
+process.once("SIGTERM", () => {
+  if (cleanupInterval) clearInterval(cleanupInterval);
+});
+process.once("SIGINT", () => {
+  if (cleanupInterval) clearInterval(cleanupInterval);
+});
+
 const event: BotEvent<"clientReady"> = {
   name: "clientReady",
   once: true,
@@ -12,7 +22,7 @@ const event: BotEvent<"clientReady"> = {
     console.log(`[Bot] Logged in as ${client.user.tag}`);
     await restartStatusScheduler(client);
 
-    setInterval(async () => {
+    cleanupInterval = setInterval(async () => {
       const cutoff = new Date(Date.now() - FORWARDED_MSG_TTL_MS);
       await db.forwardedMessage
         .deleteMany({ where: { createdAt: { lt: cutoff } } })

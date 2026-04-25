@@ -9,8 +9,25 @@ type TranslationEventKind = "FORWARDED" | "SOURCE_CORRECTION";
 // Minimum language detection confidence required to act on a mismatch.
 const CONFIDENCE_THRESHOLD = 0.85;
 
+/**
+ * Splits text into chunks that fit within Discord's message length limit.
+ * Splits at the last space before maxLen to avoid cutting words.
+ */
+function splitContent(text: string, maxLen = 1990): string[] {
+  if (text.length <= maxLen) return [text];
+  const chunks: string[] = [];
+  let remaining = text;
+  while (remaining.length > maxLen) {
+    let cut = remaining.lastIndexOf(" ", maxLen);
+    if (cut <= 0) cut = maxLen;
+    chunks.push(remaining.slice(0, cut));
+    remaining = remaining.slice(cut).trimStart();
+  }
+  if (remaining) chunks.push(remaining);
+  return chunks;
+}
+
 // Build the file attachment list for a webhook send using original URLs.
-// Voice messages (audio/*) are forwarded as-is; other files are included by URL.
 function buildAttachments(message: Message): AttachmentPayload[] {
   return message.attachments.map((att) => ({
     attachment: att.url,
@@ -42,6 +59,15 @@ const event: BotEvent<"messageCreate"> = {
   async execute(message: Message) {
     // ── Ignore bots and webhook-forwarded messages (prevents translation loops) ──
     if (message.author.bot || message.webhookId) return;
+
+    // E6: Ensure the source channel is a proper TextChannel before any webhook work.
+    if (!(message.channel instanceof TextChannel)) {
+      console.warn(
+        `[messageCreate] Channel ${message.channelId} is not a TextChannel, skipping.`,
+      );
+      return;
+    }
+    const sourceChannel = message.channel;
 
     // ── Check if this channel is part of a translation group ─────────────────
     const sourceMember = await db.channelGroupMember.findFirst({
@@ -81,6 +107,15 @@ const event: BotEvent<"messageCreate"> = {
 
     const detectedLanguage = detected?.lang ?? "unknown";
 
+    // T5: use the configured channel language when detection is uncertain so
+    // stats don't accumulate meaningless "unknown" source-language entries.
+    const effectiveSourceLanguage =
+      detected !== null &&
+      detected.confidence >= CONFIDENCE_THRESHOLD &&
+      detectedLanguage !== "unknown"
+        ? detectedLanguage
+        : sourceLanguage;
+
     // A message is considered "correct language" if:
     //   - there is no text to detect on
     //   - detection confidence is below the threshold
@@ -94,7 +129,6 @@ const event: BotEvent<"messageCreate"> = {
     // only after the corrected message is safely sent.
     if (languageMismatch) {
       try {
-        const sourceChannel = message.channel as TextChannel;
         const sourceWebhook = await getOrCreateWebhook(sourceChannel);
 
         // Translate to the channel's expected language; voice messages carry no text.
@@ -110,12 +144,21 @@ const event: BotEvent<"messageCreate"> = {
             )
           : "";
 
+        // E1: split to honour Discord's 2000-char limit
+        const correctedChunks = correctedText ? splitContent(correctedText) : [];
         await sourceWebhook.send({
-          content: correctedText || undefined,
+          content: correctedChunks[0] || undefined,
           username: displayName,
           avatarURL: message.author.displayAvatarURL(),
           ...(attachments.length > 0 ? { files: attachments } : {}),
         });
+        for (const chunk of correctedChunks.slice(1)) {
+          await sourceWebhook
+            .send({ content: chunk, username: displayName, avatarURL: message.author.displayAvatarURL() })
+            .catch((err) =>
+              console.error("[messageCreate] Failed to send correction overflow chunk:", err),
+            );
+        }
 
         // Delete original — if it fails (missing permissions), log and keep the
         // corrected message so the content and attachments are not lost.
@@ -134,7 +177,7 @@ const event: BotEvent<"messageCreate"> = {
             sourceChannelId: message.channelId,
             targetChannelId: message.channelId,
             sourceMessageId: message.id,
-            sourceLanguage: detectedLanguage,
+            sourceLanguage: effectiveSourceLanguage,
             targetLanguage: sourceLanguage,
             kind: "SOURCE_CORRECTION",
           });
@@ -150,13 +193,17 @@ const event: BotEvent<"messageCreate"> = {
     // ── Forward (with translation) to every sibling channel ──────────────────
     for (const sibling of siblings) {
       try {
-        const siblingChannel = message.client.channels.cache.get(
-          sibling.channelId,
-        ) as TextChannel | undefined;
+        // B3: fall back to API fetch if the channel is not in the local cache
+        const siblingChannel = (
+          message.client.channels.cache.get(sibling.channelId) ??
+          (await message.client.channels
+            .fetch(sibling.channelId)
+            .catch(() => null))
+        ) as TextChannel | null;
 
         if (!siblingChannel) {
           console.warn(
-            `[messageCreate] Sibling channel ${sibling.channelId} not in cache.`,
+            `[messageCreate] Sibling channel ${sibling.channelId} not in cache and fetch failed.`,
           );
           continue;
         }
@@ -178,12 +225,25 @@ const event: BotEvent<"messageCreate"> = {
           });
         }
 
+        // E1: split translated text to honour Discord's 2000-char limit.
+        // Only the first chunk's message ID is tracked for edit/delete sync.
+        const chunks = translatedText ? splitContent(translatedText) : [];
         const sent = await webhook.send({
-          content: translatedText || undefined,
+          content: chunks[0] || undefined,
           username: displayName,
           avatarURL: message.author.displayAvatarURL(),
           ...(attachments.length > 0 ? { files: attachments } : {}),
         });
+        for (const chunk of chunks.slice(1)) {
+          await webhook
+            .send({ content: chunk, username: displayName, avatarURL: message.author.displayAvatarURL() })
+            .catch((err) =>
+              console.error(
+                `[messageCreate] Failed to send overflow chunk to ${sibling.channelId}:`,
+                err,
+              ),
+            );
+        }
 
         if (hasText) {
           await recordTranslationEvent({
@@ -191,7 +251,7 @@ const event: BotEvent<"messageCreate"> = {
             sourceChannelId: message.channelId,
             targetChannelId: sibling.channelId,
             sourceMessageId: message.id,
-            sourceLanguage: detectedLanguage,
+            sourceLanguage: effectiveSourceLanguage,
             targetLanguage: sibling.languageCode,
             kind: "FORWARDED",
           });

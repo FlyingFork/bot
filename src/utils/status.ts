@@ -1,18 +1,7 @@
 import { ActivityType, Client } from "discord.js";
+import type { BotStatusConfig } from "@/generated/prisma/client";
 import db from "@/utils/db";
 import { isLanguageSupported, translateText } from "@/utils/translate";
-
-type StoredStatusConfig = {
-  id: string;
-  enabled: boolean;
-  activityType: string;
-  message: string;
-  countdownTargetAt: Date | null;
-  languageCodesJson: string;
-  translationIntervalSeconds: number;
-  currentLanguageIndex: number;
-  updatedAt: Date;
-};
 
 export type StatusConfigInput = {
   enabled: boolean;
@@ -102,7 +91,7 @@ function formatCountdown(target: Date, now = new Date()): string | null {
 }
 
 function buildPresenceMessage(
-  config: StoredStatusConfig,
+  config: BotStatusConfig,
   now = new Date(),
 ): string | null {
   const countdownSuffix = config.countdownTargetAt
@@ -122,24 +111,8 @@ function resolveActivityType(value: string): ActivityType {
   return normalizeActivityType(value) ?? ActivityType.Playing;
 }
 
-async function readStatusConfig(): Promise<StoredStatusConfig | null> {
-  const rows = await db.$queryRaw<StoredStatusConfig[]>`
-    SELECT
-      "id",
-      "enabled",
-      "activityType",
-      "message",
-      "countdownTargetAt",
-      "languageCodesJson",
-      "translationIntervalSeconds",
-      "currentLanguageIndex",
-      "updatedAt"
-    FROM "bot_status_config"
-    WHERE "id" = ${STATUS_ROW_ID}
-    LIMIT 1
-  `;
-
-  return rows[0] ?? null;
+async function readStatusConfig(): Promise<BotStatusConfig | null> {
+  return db.botStatusConfig.findUnique({ where: { id: STATUS_ROW_ID } });
 }
 
 export async function upsertStatusConfig(
@@ -155,38 +128,28 @@ export async function upsertStatusConfig(
     isLanguageSupported(code),
   );
 
-  await db.$executeRaw`
-    INSERT INTO "bot_status_config" (
-      "id",
-      "enabled",
-      "activityType",
-      "message",
-      "countdownTargetAt",
-      "languageCodesJson",
-      "translationIntervalSeconds",
-      "currentLanguageIndex",
-      "updatedAt"
-    ) VALUES (
-      ${STATUS_ROW_ID},
-      ${input.enabled},
-      ${input.activityType},
-      ${input.message},
-      ${input.countdownTargetAt},
-      ${serializeLanguages(languages)},
-      ${intervalSeconds},
-      ${input.currentLanguageIndex ?? 0},
-      NOW()
-    )
-    ON CONFLICT ("id") DO UPDATE SET
-      "enabled" = EXCLUDED."enabled",
-      "activityType" = EXCLUDED."activityType",
-      "message" = EXCLUDED."message",
-      "countdownTargetAt" = EXCLUDED."countdownTargetAt",
-      "languageCodesJson" = EXCLUDED."languageCodesJson",
-      "translationIntervalSeconds" = EXCLUDED."translationIntervalSeconds",
-      "currentLanguageIndex" = EXCLUDED."currentLanguageIndex",
-      "updatedAt" = NOW()
-  `;
+  await db.botStatusConfig.upsert({
+    where: { id: STATUS_ROW_ID },
+    create: {
+      id: STATUS_ROW_ID,
+      enabled: input.enabled,
+      activityType: input.activityType,
+      message: input.message,
+      countdownTargetAt: input.countdownTargetAt,
+      languageCodesJson: serializeLanguages(languages),
+      translationIntervalSeconds: intervalSeconds,
+      currentLanguageIndex: input.currentLanguageIndex ?? 0,
+    },
+    update: {
+      enabled: input.enabled,
+      activityType: input.activityType,
+      message: input.message,
+      countdownTargetAt: input.countdownTargetAt,
+      languageCodesJson: serializeLanguages(languages),
+      translationIntervalSeconds: intervalSeconds,
+      currentLanguageIndex: input.currentLanguageIndex ?? 0,
+    },
+  });
 }
 
 async function clearPresence(client: Client<true>): Promise<void> {
@@ -195,7 +158,7 @@ async function clearPresence(client: Client<true>): Promise<void> {
 
 async function applyStatusFromConfig(
   client: Client<true>,
-  config: StoredStatusConfig,
+  config: BotStatusConfig,
 ): Promise<void> {
   const languages = parseStoredLanguages(config.languageCodesJson);
 
@@ -207,6 +170,11 @@ async function applyStatusFromConfig(
   const baseMessage = buildPresenceMessage(config, new Date());
 
   if (baseMessage === null) {
+    // E5: countdown expired — stop the scheduler so we don't keep writing to DB
+    if (scheduler) {
+      clearInterval(scheduler);
+      scheduler = null;
+    }
     await upsertStatusConfig({
       enabled: false,
       activityType: config.activityType,

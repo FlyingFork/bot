@@ -3,6 +3,21 @@ import { BotEvent } from "@/types/index";
 import db from "@/utils/db";
 import { translateText } from "@/utils/translate";
 
+/** Splits text into chunks that fit within Discord's 2000-char message limit. */
+function splitContent(text: string, maxLen = 1990): string[] {
+  if (text.length <= maxLen) return [text];
+  const chunks: string[] = [];
+  let remaining = text;
+  while (remaining.length > maxLen) {
+    let cut = remaining.lastIndexOf(" ", maxLen);
+    if (cut <= 0) cut = maxLen;
+    chunks.push(remaining.slice(0, cut));
+    remaining = remaining.slice(cut).trimStart();
+  }
+  if (remaining) chunks.push(remaining);
+  return chunks;
+}
+
 const event: BotEvent<"messageUpdate"> = {
   name: "messageUpdate",
 
@@ -59,6 +74,9 @@ const event: BotEvent<"messageUpdate"> = {
       memberRows.map((row) => [row.channelId, row.languageCode]),
     );
 
+    // M1: reuse WebhookClient instances within this handler execution
+    const webhookClientCache = new Map<string, WebhookClient>();
+
     for (const record of records) {
       const webhookRow = webhookByChannel.get(record.targetChannelId);
       const targetLang = langByChannel.get(record.targetChannelId);
@@ -86,13 +104,20 @@ const event: BotEvent<"messageUpdate"> = {
         },
       );
 
-      const client = new WebhookClient({
-        id: webhookRow.webhookId,
-        token: webhookRow.webhookToken,
-      });
+      // E1: edits can't expand into multiple messages, so use only the first chunk
+      const editContent = splitContent(translatedText)[0];
+
+      let client = webhookClientCache.get(webhookRow.webhookId);
+      if (!client) {
+        client = new WebhookClient({
+          id: webhookRow.webhookId,
+          token: webhookRow.webhookToken,
+        });
+        webhookClientCache.set(webhookRow.webhookId, client);
+      }
 
       await client
-        .editMessage(record.webhookMessageId, { content: translatedText })
+        .editMessage(record.webhookMessageId, { content: editContent })
         .catch((err) =>
           console.error(
             `[messageUpdate] Failed to edit webhook message ${record.webhookMessageId} in channel ${record.targetChannelId}:`,

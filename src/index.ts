@@ -16,6 +16,8 @@ const client = new ExtendedClient({
 });
 
 async function main() {
+  if (!process.env.DISCORD_TOKEN) throw new Error("DISCORD_TOKEN is required");
+  if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required");
   validateTranslationConfig();
   await loadCommands(client);
   await loadEvents(client);

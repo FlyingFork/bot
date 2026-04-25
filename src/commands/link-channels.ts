@@ -5,6 +5,7 @@ import {
   ChannelType,
 } from "discord.js";
 import { Command } from "@/types/index";
+import { EMBED_COLOR } from "@/utils/constants";
 import db from "@/utils/db";
 import { isLanguageSupported } from "@/utils/translate";
 
@@ -112,14 +113,14 @@ const command: Command = {
 
     const embed = new EmbedBuilder()
       .setTitle("Translation Group Created")
-      .setColor(0x5865f2)
+      .setColor(EMBED_COLOR)
       .addFields(
         { name: "Group ID", value: group.id, inline: false },
         {
           name: "Linked Channels",
           value: group.members
             .map(
-              (m: { channelId: any; languageCode: any }) =>
+              (m: { channelId: string; languageCode: string }) =>
                 `<#${m.channelId}> — \`${m.languageCode}\``,
             )
             .join("\n"),

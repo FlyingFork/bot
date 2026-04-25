@@ -4,6 +4,7 @@ import {
   ChatInputCommandInteraction,
 } from "discord.js";
 import { Command } from "@/types/index";
+import { EMBED_COLOR } from "@/utils/constants";
 import db from "@/utils/db";
 
 type WindowKey = "1h" | "24h" | "7d" | "all";
@@ -23,6 +24,9 @@ const WINDOW_LABELS: Record<WindowKey, string> = {
   "7d": "Last 7 days",
   all: "All time",
 };
+
+// E4: cap the number of rows loaded into memory
+const MAX_EVENTS = 10_000;
 
 function resolveWindow(windowKey: WindowKey): {
   since: Date | null;
@@ -122,7 +126,10 @@ const command: Command = {
       orderBy: {
         createdAt: "desc",
       },
+      take: MAX_EVENTS,
     })) as EventRow[];
+
+    const capped = events.length === MAX_EVENTS;
 
     const total = events.length;
     const forwarded = events.filter(
@@ -154,15 +161,20 @@ const command: Command = {
       events.map((event) => `<#${event.sourceChannelId}>`),
     );
 
+    // D3: note that deleted channels will render as #deleted-channel in Discord
+    const footerParts = [
+      "Counts reflect translated sends. One source message can generate multiple events when forwarded to more than one channel.",
+      "Channels removed since logging will appear as #deleted-channel.",
+    ];
+    if (capped) footerParts.push(`Results capped at ${MAX_EVENTS.toLocaleString()} rows.`);
+
     const embed = new EmbedBuilder()
       .setTitle("Translation Stats")
-      .setColor(0x5865f2)
+      .setColor(EMBED_COLOR)
       .setDescription(
         `${label}${since ? ` • since ${since.toISOString()}` : ""}`,
       )
-      .setFooter({
-        text: "Counts reflect translated sends. One source message can generate multiple events when it is forwarded to more than one channel.",
-      })
+      .setFooter({ text: footerParts.join(" ") })
       .addFields(
         {
           name: "Volume",

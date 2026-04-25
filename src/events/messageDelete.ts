@@ -22,6 +22,9 @@ const event: BotEvent<"messageDelete"> = {
       webhookRows.map((row) => [row.channelId, row]),
     );
 
+    // M1: reuse WebhookClient instances within this handler execution
+    const webhookClientCache = new Map<string, WebhookClient>();
+
     for (const record of records) {
       const webhookRow = webhookByChannel.get(record.targetChannelId);
       if (!webhookRow) {
@@ -31,10 +34,14 @@ const event: BotEvent<"messageDelete"> = {
         continue;
       }
 
-      const client = new WebhookClient({
-        id: webhookRow.webhookId,
-        token: webhookRow.webhookToken,
-      });
+      let client = webhookClientCache.get(webhookRow.webhookId);
+      if (!client) {
+        client = new WebhookClient({
+          id: webhookRow.webhookId,
+          token: webhookRow.webhookToken,
+        });
+        webhookClientCache.set(webhookRow.webhookId, client);
+      }
 
       await client
         .deleteMessage(record.webhookMessageId)

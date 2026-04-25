@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from "axios";
+import { LIBRETRANSLATE_MAX_CHARS } from "@/utils/constants";
 
 type SupportedLanguage = "en" | "ru" | "de";
 
@@ -178,18 +179,21 @@ function cacheSet(key: string, value: string): void {
 
 const URL_REGEX = /https?:\/\/[^\s<>[\]{}|\\^`"]*[^\s<>[\]{}|\\^`".,;:!?()]/g;
 
-function maskUrls(text: string): { masked: string; urls: string[] } {
+function maskUrls(
+  text: string,
+  token: string,
+): { masked: string; urls: string[] } {
   const urls: string[] = [];
   const masked = text.replace(URL_REGEX, (url) => {
     const idx = urls.push(url) - 1;
-    return `URLTOKEN${idx}URLTOKEN`;
+    return `__URL_${token}_${idx}__`;
   });
   return { masked, urls };
 }
 
-function restoreUrls(text: string, urls: string[]): string {
+function restoreUrls(text: string, urls: string[], token: string): string {
   return text.replace(
-    /URLTOKEN(\d+)URLTOKEN/g,
+    new RegExp(`__URL_${token}_(\\d+)__`, "g"),
     (_, idx) => urls[Number(idx)] ?? _,
   );
 }
@@ -206,16 +210,26 @@ export async function translateText(
 ): Promise<string> {
   if (!text.trim()) return text;
 
+  if (text.length > LIBRETRANSLATE_MAX_CHARS) {
+    throw new Error(
+      `Message too long for translation (${text.length} chars, max ${LIBRETRANSLATE_MAX_CHARS}).`,
+    );
+  }
+
   const normalizedTarget = normalizeLanguageCode(targetLang);
   if (!isLanguageSupported(normalizedTarget)) {
     throw new Error(`Unsupported target language: "${targetLang}"`);
   }
 
-  const key = `${text}::${normalizedTarget}`;
+  // T2: normalise text before caching so trivial whitespace differences share entries
+  const normalizedText = text.trim().replace(/\s+/g, " ");
+  const key = `${normalizedText}::${normalizedTarget}`;
   const cached = cache.get(key);
   if (cached !== undefined) return cached;
 
-  const { masked, urls } = maskUrls(text);
+  // T3: per-call random token prevents user-typed text from colliding with placeholders
+  const token = Math.random().toString(36).slice(2, 10).toUpperCase();
+  const { masked, urls } = maskUrls(normalizedText, token);
 
   try {
     const client = getHttpClient();
@@ -235,7 +249,7 @@ export async function translateText(
       throw new Error("Invalid translate response shape.");
     }
 
-    const result = restoreUrls(translated, urls);
+    const result = restoreUrls(translated, urls, token);
     cacheSet(key, result);
     return result;
   } catch (err) {

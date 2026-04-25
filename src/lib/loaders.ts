@@ -12,7 +12,7 @@ function getFiles(dir: string): string[] {
 }
 
 export async function loadCommands(client: ExtendedClient): Promise<void> {
-  const dir = path.join(process.cwd(), 'src', 'commands');
+  const dir = path.join(__dirname, '..', 'commands');
   const files = getFiles(dir).filter((f) => f.endsWith('.ts') || f.endsWith('.js'));
 
   for (const file of files) {
@@ -30,7 +30,7 @@ export async function loadCommands(client: ExtendedClient): Promise<void> {
 }
 
 export async function loadEvents(client: ExtendedClient): Promise<void> {
-  const dir = path.join(process.cwd(), 'src', 'events');
+  const dir = path.join(__dirname, '..', 'events');
   const files = getFiles(dir).filter((f) => f.endsWith('.ts') || f.endsWith('.js'));
 
   for (const file of files) {
