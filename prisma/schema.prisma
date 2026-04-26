@@ -7,81 +7,31 @@ datasource db {
   provider = "postgresql"
 }
 
-enum TranslationEventKind {
-  FORWARDED
-  SOURCE_CORRECTION
+model TranslationGroup {
+  id       String               @id @default(cuid())
+  guildId  String
+  name     String
+  channels TranslationChannel[]
+
+  @@unique([guildId, name])
 }
 
-// A group of channels that translate messages between each other.
-model ChannelGroup {
-  id        String               @id @default(uuid())
-  guildId   String
-  createdAt DateTime             @default(now())
-  members   ChannelGroupMember[]
-}
-
-// One channel slot inside a ChannelGroup, with its target language.
-model ChannelGroupMember {
-  id           String       @id @default(uuid())
+model TranslationChannel {
+  id           String           @id @default(cuid())
+  channelId    String           @unique
+  language     String
+  webhookId    String?
+  webhookToken String?
+  group        TranslationGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
   groupId      String
-  channelId    String
-  languageCode String
-  group        ChannelGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-
-  // A channel can appear only once per group.
-  @@unique([channelId, groupId])
 }
 
-// Stores the webhook used to impersonate users when forwarding translations.
-model ChannelWebhook {
-  id           String   @id @default(uuid())
-  channelId    String   @unique
-  webhookId    String
-  webhookToken String
-  createdAt    DateTime @default(now())
-}
+model TranslationStat {
+  id        String   @id @default(cuid())
+  guildId   String
+  channelId String
+  date      DateTime
+  count     Int      @default(0)
 
-// Records successful translation sends so stats can be queried by time window.
-model TranslationEvent {
-  id              String               @id @default(uuid())
-  guildId         String
-  sourceChannelId String
-  targetChannelId String
-  sourceMessageId String
-  sourceLanguage  String
-  targetLanguage  String
-  kind            TranslationEventKind
-  createdAt       DateTime             @default(now())
-
-  @@index([guildId, createdAt])
-  @@index([guildId, kind, createdAt])
-  @@index([guildId, targetLanguage, createdAt])
-}
-
-// Maps an original message to each webhook copy forwarded to a sibling channel.
-// Used to keep webhook copies in sync when the original is edited or deleted.
-model ForwardedMessage {
-  id               String   @id @default(uuid())
-  sourceMessageId  String
-  sourceChannelId  String
-  targetChannelId  String
-  webhookMessageId String
-  createdAt        DateTime @default(now())
-
-  @@index([sourceMessageId])
-}
-
-// Singleton bot presence configuration used by /set_status.
-model BotStatusConfig {
-  id                         String    @id @default("global")
-  enabled                    Boolean   @default(false)
-  activityType               String
-  message                    String
-  countdownTargetAt          DateTime?
-  languageCodesJson          String    @default("[]")
-  translationIntervalSeconds Int       @default(30)
-  currentLanguageIndex       Int       @default(0)
-  updatedAt                  DateTime  @updatedAt
-
-  @@map("bot_status_config")
+  @@unique([guildId, channelId, date])
 }

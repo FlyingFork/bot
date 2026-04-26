@@ -21,7 +21,7 @@ const command: Command = {
 
     await interaction.editReply({
       content:
-        `Latency: ${latency}ms | API: ${interaction.client.ws.ping}ms\n` +
+        `Pong! 🏓 WebSocket latency: **${interaction.client.ws.ping}ms** | Response: ${latency}ms\n` +
         `LibreTranslate: ${libStatus} (${health.latencyMs}ms)\n` +
         `API key configured: ${health.apiKeyConfigured ? "yes" : "no"}\n` +
         `Missing required languages (en, ru, de): ${missing}\n` +

@@ -1,229 +1,117 @@
-import {
-  SlashCommandBuilder,
-  EmbedBuilder,
-  ChatInputCommandInteraction,
-} from "discord.js";
+import { SlashCommandBuilder, EmbedBuilder, ChatInputCommandInteraction } from "discord.js";
 import { Command } from "@/types/index";
 import { EMBED_COLOR } from "@/utils/constants";
+import { checkLibreTranslateHealth } from "@/utils/translate";
 import db from "@/utils/db";
 
-type WindowKey = "1h" | "24h" | "7d" | "all";
-
-type EventRow = {
-  sourceChannelId: string;
-  targetChannelId: string;
-  sourceMessageId: string;
-  sourceLanguage: string;
-  targetLanguage: string;
-  kind: "FORWARDED" | "SOURCE_CORRECTION";
-};
-
-const WINDOW_LABELS: Record<WindowKey, string> = {
-  "1h": "Last hour",
-  "24h": "Last 24 hours",
-  "7d": "Last 7 days",
-  all: "All time",
-};
-
-// E4: cap the number of rows loaded into memory
-const MAX_EVENTS = 10_000;
-
-function resolveWindow(windowKey: WindowKey): {
-  since: Date | null;
-  label: string;
-} {
-  const now = new Date();
-
-  switch (windowKey) {
-    case "1h":
-      return {
-        since: new Date(now.getTime() - 60 * 60 * 1000),
-        label: WINDOW_LABELS[windowKey],
-      };
-    case "24h":
-      return {
-        since: new Date(now.getTime() - 24 * 60 * 60 * 1000),
-        label: WINDOW_LABELS[windowKey],
-      };
-    case "7d":
-      return {
-        since: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
-        label: WINDOW_LABELS[windowKey],
-      };
-    case "all":
-    default:
-      return { since: null, label: WINDOW_LABELS.all };
-  }
+function todayMidnightUtc(): Date {
+  const d = new Date();
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
 }
 
-function formatTopEntries(
-  entries: Array<[string, number]>,
-  emptyLabel: string,
-): string {
-  if (entries.length === 0) return emptyLabel;
-
-  return entries.map(([key, count]) => `${key} — ${count}`).join("\n");
-}
-
-function tally(values: string[]): Array<[string, number]> {
-  const counts = new Map<string, number>();
-
-  for (const value of values) {
-    counts.set(value, (counts.get(value) ?? 0) + 1);
-  }
-
-  return [...counts.entries()].sort((a, b) => b[1] - a[1]);
-}
-
-function prettyLanguage(value: string): string {
-  return value === "unknown" ? "unknown" : `\`${value}\``;
+function formatUptime(seconds: number): string {
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return `${d}d ${h}h ${m}m`;
 }
 
 const command: Command = {
   data: new SlashCommandBuilder()
     .setName("stats")
-    .setDescription("Show translation activity statistics")
-    .addStringOption((option) =>
-      option
-        .setName("window")
-        .setDescription("Time window to inspect")
-        .addChoices(
-          { name: "Last hour", value: "1h" },
-          { name: "Last 24 hours", value: "24h" },
-          { name: "Last 7 days", value: "7d" },
-          { name: "All time", value: "all" },
-        ),
-    ) as SlashCommandBuilder,
-  requiredRoles: [],
+    .setDescription("Show bot and translation statistics for this server"),
+
+  requiredRoles: ["R4", "R5"],
 
   async execute(interaction: ChatInputCommandInteraction) {
     await interaction.deferReply({ ephemeral: true });
 
-    if (!interaction.guildId) {
-      await interaction.editReply({
-        content: "This command can only be used inside a server.",
-      });
+    const guildId = interaction.guildId;
+    if (!guildId) {
+      await interaction.editReply({ content: "This command can only be used inside a server." });
       return;
     }
 
-    const windowValue = (interaction.options.getString("window") ??
-      "24h") as WindowKey;
-    const { since, label } = resolveWindow(windowValue);
+    const today = todayMidnightUtc();
 
-    const events = (await db.translationEvent.findMany({
-      where: {
-        guildId: interaction.guildId,
-        ...(since ? { createdAt: { gte: since } } : {}),
-      },
-      select: {
-        sourceChannelId: true,
-        targetChannelId: true,
-        sourceMessageId: true,
-        sourceLanguage: true,
-        targetLanguage: true,
-        kind: true,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-      take: MAX_EVENTS,
-    })) as EventRow[];
+    const [groups, totalChannels, statAll, statToday, topChannelRows, health] =
+      await Promise.all([
+        db.translationGroup.findMany({
+          where: { guildId },
+          select: { name: true },
+          orderBy: { name: "asc" },
+        }),
+        db.translationChannel.count({ where: { group: { guildId } } }),
+        db.translationStat.aggregate({
+          _sum: { count: true },
+          where: { guildId },
+        }),
+        db.translationStat.aggregate({
+          _sum: { count: true },
+          where: { guildId, date: today },
+        }),
+        db.translationStat.groupBy({
+          by: ["channelId"],
+          _sum: { count: true },
+          where: { guildId },
+          orderBy: { _sum: { count: "desc" } },
+          take: 1,
+        }),
+        checkLibreTranslateHealth(),
+      ]);
 
-    const capped = events.length === MAX_EVENTS;
+    const totalTranslated = statAll._sum.count ?? 0;
+    const todayTranslated = statToday._sum.count ?? 0;
 
-    const total = events.length;
-    const forwarded = events.filter(
-      (event) => event.kind === "FORWARDED",
-    ).length;
-    const sourceCorrections = events.filter(
-      (event) => event.kind === "SOURCE_CORRECTION",
-    ).length;
-    const uniqueSourceChannels = new Set(
-      events.map((event) => event.sourceChannelId),
-    ).size;
-    const uniqueTargetChannels = new Set(
-      events.map((event) => event.targetChannelId),
-    ).size;
-    const uniqueOriginalMessages = new Set(
-      events.map((event) => event.sourceMessageId),
-    ).size;
-    const avgPerHour = since
-      ? total / Math.max((Date.now() - since.getTime()) / (60 * 60 * 1000), 1)
-      : 0;
+    const mostActiveChannel =
+      topChannelRows.length > 0
+        ? `<#${topChannelRows[0].channelId}> — ${topChannelRows[0]._sum.count ?? 0} msgs`
+        : "N/A";
 
-    const sourceLanguageBreakdown = tally(
-      events.map((event) => event.sourceLanguage),
-    );
-    const targetLanguageBreakdown = tally(
-      events.map((event) => event.targetLanguage),
-    );
-    const sourceChannelBreakdown = tally(
-      events.map((event) => `<#${event.sourceChannelId}>`),
-    );
-
-    // D3: note that deleted channels will render as #deleted-channel in Discord
-    const footerParts = [
-      "Counts reflect translated sends. One source message can generate multiple events when forwarded to more than one channel.",
-      "Channels removed since logging will appear as #deleted-channel.",
-    ];
-    if (capped) footerParts.push(`Results capped at ${MAX_EVENTS.toLocaleString()} rows.`);
+    const groupNames =
+      groups.length > 0
+        ? groups.map((g) => `• ${g.name}`).join("\n")
+        : "*(none)*";
 
     const embed = new EmbedBuilder()
-      .setTitle("Translation Stats")
+      .setTitle("Server Statistics")
       .setColor(EMBED_COLOR)
-      .setDescription(
-        `${label}${since ? ` • since ${since.toISOString()}` : ""}`,
-      )
-      .setFooter({ text: footerParts.join(" ") })
       .addFields(
         {
-          name: "Volume",
-          value: [
-            `Translated sends: **${total}**`,
-            `Unique source messages: **${uniqueOriginalMessages}**`,
-            `Forwarded copies: **${forwarded}**`,
-            `Source corrections: **${sourceCorrections}**`,
-            since
-              ? `Average per hour: **${avgPerHour.toFixed(2)}**`
-              : `Average per hour: **n/a**`,
-          ].join("\n"),
+          name: `Translation Groups (${groups.length})`,
+          value: groupNames.slice(0, 1024),
           inline: false,
         },
         {
-          name: "Channels",
-          value: [
-            `Unique source channels: **${uniqueSourceChannels}**`,
-            `Unique target channels: **${uniqueTargetChannels}**`,
-          ].join("\n"),
+          name: "Channels Enrolled",
+          value: String(totalChannels),
           inline: true,
         },
         {
-          name: "Top source languages",
-          value: formatTopEntries(
-            sourceLanguageBreakdown
-              .slice(0, 3)
-              .map(([lang, count]) => [prettyLanguage(lang), count]),
-            "No translated messages in this window.",
-          ),
+          name: "Messages Translated (all-time)",
+          value: String(totalTranslated),
           inline: true,
         },
         {
-          name: "Top target languages",
-          value: formatTopEntries(
-            targetLanguageBreakdown
-              .slice(0, 3)
-              .map(([lang, count]) => [prettyLanguage(lang), count]),
-            "No translated messages in this window.",
-          ),
+          name: "Messages Translated (today)",
+          value: String(todayTranslated),
           inline: true,
         },
         {
-          name: "Most active source channels",
-          value: formatTopEntries(
-            sourceChannelBreakdown.slice(0, 3),
-            "No translated messages in this window.",
-          ),
+          name: "Most Active Channel",
+          value: mostActiveChannel,
           inline: false,
+        },
+        {
+          name: "Bot Uptime",
+          value: formatUptime(Math.floor(process.uptime())),
+          inline: true,
+        },
+        {
+          name: "LibreTranslate",
+          value: health.ok ? `✅ Online (${health.latencyMs}ms)` : `❌ Offline`,
+          inline: true,
         },
       );
 

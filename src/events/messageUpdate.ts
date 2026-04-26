@@ -1,9 +1,9 @@
 import { Message, PartialMessage, WebhookClient } from "discord.js";
 import { BotEvent } from "@/types/index";
 import db from "@/utils/db";
-import { translateText } from "@/utils/translate";
+import { translateText, isEmojiOrSymbolOnly } from "@/utils/translate";
+import { getForwardedMessages } from "@/utils/messageCache";
 
-/** Splits text into chunks that fit within Discord's 2000-char message limit. */
 function splitContent(text: string, maxLen = 1990): string[] {
   if (text.length <= maxLen) return [text];
   const chunks: string[] = [];
@@ -27,103 +27,86 @@ const event: BotEvent<"messageUpdate"> = {
   ) {
     if (newMessage.author?.bot || newMessage.webhookId) return;
 
-    // Resolve partial to get .content. If fetch fails, abort silently.
     const resolved = newMessage.partial
       ? await newMessage.fetch().catch((err) => {
-          console.error(
-            `[messageUpdate] Failed to fetch partial message ${newMessage.id}:`,
-            err,
-          );
+          console.error(`[messageUpdate] Failed to fetch partial ${newMessage.id}:`, err);
           return null;
         })
       : newMessage;
 
     if (!resolved) return;
+    if (!resolved.guild) return;
 
-    // Skip embed unfurls and other non-content updates.
-    // oldMessage.content === null means uncached — treat as a change so real
-    // edits on previously uncached messages are not silently skipped.
-    if (oldMessage.content !== null && oldMessage.content === resolved.content) {
-      return;
-    }
+    if (oldMessage.content !== null && oldMessage.content === resolved.content) return;
 
-    const newContent = resolved.content ?? "";
-    if (!newContent.trim()) return;
+    const newContent = resolved.content?.trim() ?? "";
+    if (!newContent) return;
 
-    const records = await db.forwardedMessage.findMany({
-      where: { sourceMessageId: resolved.id },
+    const guildId = resolved.guild.id;
+    const forwardMap = getForwardedMessages(guildId, resolved.id);
+    if (!forwardMap || forwardMap.size === 0) return;
+
+    // Look up the source channel's language
+    const sourceRecord = await db.translationChannel.findUnique({
+      where: { channelId: resolved.channelId },
+      select: { language: true },
     });
+    const sourceLang = sourceRecord?.language ?? "en";
 
-    if (records.length === 0) return;
+    // Collect target channel language codes in one query
+    const targetChannelIds = [...forwardMap.keys()];
+    const memberRows = await db.translationChannel.findMany({
+      where: { channelId: { in: targetChannelIds } },
+      select: { channelId: true, language: true, webhookId: true, webhookToken: true },
+    });
+    const langByChannel = new Map(memberRows.map((r) => [r.channelId, r]));
 
-    const targetChannelIds = [...new Set(records.map((r) => r.targetChannelId))];
+    const clientCache = new Map<string, WebhookClient>();
 
-    const [webhookRows, memberRows] = await Promise.all([
-      db.channelWebhook.findMany({
-        where: { channelId: { in: targetChannelIds } },
-      }),
-      db.channelGroupMember.findMany({
-        where: { channelId: { in: targetChannelIds } },
-      }),
-    ]);
-
-    const webhookByChannel = new Map(
-      webhookRows.map((row) => [row.channelId, row]),
-    );
-    const langByChannel = new Map(
-      memberRows.map((row) => [row.channelId, row.languageCode]),
-    );
-
-    // M1: reuse WebhookClient instances within this handler execution
-    const webhookClientCache = new Map<string, WebhookClient>();
-
-    for (const record of records) {
-      const webhookRow = webhookByChannel.get(record.targetChannelId);
-      const targetLang = langByChannel.get(record.targetChannelId);
-
-      if (!webhookRow) {
-        console.warn(
-          `[messageUpdate] No webhook record for channel ${record.targetChannelId}, skipping.`,
-        );
-        continue;
-      }
-      if (!targetLang) {
-        console.warn(
-          `[messageUpdate] No language code for channel ${record.targetChannelId}, skipping.`,
-        );
+    for (const [targetChannelId, webhookMsgIds] of forwardMap.entries()) {
+      const record = langByChannel.get(targetChannelId);
+      if (!record?.webhookId || !record.webhookToken) {
+        console.warn(`[messageUpdate] No webhook record for ${targetChannelId}, skipping.`);
         continue;
       }
 
-      const translatedText = await translateText(newContent, targetLang).catch(
-        (err) => {
-          console.error(
-            `[messageUpdate] Translation to ${targetLang} failed for message ${resolved.id}:`,
-            err,
-          );
-          return newContent;
-        },
-      );
+      const targetLang = record.language;
+      let translatedContent: string;
 
-      // E1: edits can't expand into multiple messages, so use only the first chunk
-      const editContent = splitContent(translatedText)[0];
+      if (sourceLang === targetLang || isEmojiOrSymbolOnly(newContent)) {
+        translatedContent = newContent;
+      } else {
+        translatedContent = await translateText(newContent, sourceLang, targetLang).catch(
+          (err) => {
+            console.error(
+              `[messageUpdate] Translation to ${targetLang} failed for ${resolved.id}:`,
+              err,
+            );
+            return newContent;
+          },
+        );
+      }
 
-      let client = webhookClientCache.get(webhookRow.webhookId);
+      // Edits can only update the first chunk (can't expand into new messages)
+      const editContent = splitContent(translatedContent)[0];
+
+      let client = clientCache.get(record.webhookId);
       if (!client) {
-        client = new WebhookClient({
-          id: webhookRow.webhookId,
-          token: webhookRow.webhookToken,
-        });
-        webhookClientCache.set(webhookRow.webhookId, client);
+        client = new WebhookClient({ id: record.webhookId, token: record.webhookToken });
+        clientCache.set(record.webhookId, client);
       }
 
-      await client
-        .editMessage(record.webhookMessageId, { content: editContent })
-        .catch((err) =>
-          console.error(
-            `[messageUpdate] Failed to edit webhook message ${record.webhookMessageId} in channel ${record.targetChannelId}:`,
-            err,
-          ),
-        );
+      // Edit the first tracked webhook message; ignore 10008 (already deleted)
+      const firstMsgId = webhookMsgIds[0];
+      if (firstMsgId) {
+        await client.editMessage(firstMsgId, { content: editContent }).catch((err) => {
+          if ((err as { code?: number }).code === 10008) {
+            console.warn(`[messageUpdate] Webhook message ${firstMsgId} already deleted.`);
+          } else {
+            console.error(`[messageUpdate] Failed to edit webhook message ${firstMsgId}:`, err);
+          }
+        });
+      }
     }
   },
 };

@@ -1,18 +1,25 @@
-import { Message, TextChannel, AttachmentPayload } from "discord.js";
+import {
+  Message,
+  TextChannel,
+  ThreadChannel,
+  AttachmentPayload,
+  AllowedMentionsTypes,
+} from "discord.js";
 import { BotEvent } from "@/types/index";
 import db from "@/utils/db";
-import { translateText, detectLanguage } from "@/utils/translate";
-import { getOrCreateWebhook } from "@/utils/webhook";
+import { translateText, detectLanguage, isEmojiOrSymbolOnly, sanitizeTextForDetection } from "@/utils/translate";
+import { getOrCreateWebhook, isOwnWebhook } from "@/utils/webhook";
+import { checkRateLimit } from "@/utils/rateLimiter";
+import { storeForwardedMessage } from "@/utils/messageCache";
+import type { TranslationChannel } from "@/generated/prisma/client";
 
-type TranslationEventKind = "FORWARDED" | "SOURCE_CORRECTION";
-
-// Minimum language detection confidence required to act on a mismatch.
 const CONFIDENCE_THRESHOLD = 0.85;
+const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024; // 8 MB
 
-/**
- * Splits text into chunks that fit within Discord's message length limit.
- * Splits at the last space before maxLen to avoid cutting words.
- */
+const ALLOWED_MENTIONS = { parse: [] as AllowedMentionsTypes[] };
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 function splitContent(text: string, maxLen = 1990): string[] {
   if (text.length <= maxLen) return [text];
   const chunks: string[] = [];
@@ -27,257 +34,350 @@ function splitContent(text: string, maxLen = 1990): string[] {
   return chunks;
 }
 
-// Build the file attachment list for a webhook send using original URLs.
 function buildAttachments(message: Message): AttachmentPayload[] {
-  return message.attachments.map((att) => ({
-    attachment: att.url,
-    name: att.name ?? "file",
-  }));
+  return [...message.attachments.values()].map((att) => {
+    if (att.size > MAX_ATTACHMENT_BYTES) {
+      // Too large to re-upload — return as a sentinel that callers handle
+      return { attachment: att.url, name: att.name ?? "file", tooBig: true } as AttachmentPayload & { tooBig: boolean };
+    }
+    return { attachment: att.url, name: att.name ?? "file" };
+  });
 }
 
-async function recordTranslationEvent(params: {
-  guildId: string;
-  sourceChannelId: string;
-  targetChannelId: string;
-  sourceMessageId: string;
-  sourceLanguage: string;
-  targetLanguage: string;
-  kind: TranslationEventKind;
-}): Promise<void> {
-  await db.translationEvent
-    .create({
-      data: params,
-    })
-    .catch((err) => {
-      console.error("[messageCreate] Failed to record translation event:", err);
-    });
+function buildStickerText(message: Message): string {
+  if (message.stickers.size === 0) return "";
+  return [...message.stickers.values()]
+    .map((s) => `[${s.name}](https://media.discordapp.net/stickers/${s.id}.png)`)
+    .join(" ");
 }
+
+function buildDisplayName(message: Message): string {
+  const raw =
+    message.member?.nickname ??
+    message.author.globalName ??
+    message.author.username;
+  return (raw ?? "User").slice(0, 80) || "User";
+}
+
+async function upsertTranslationStat(
+  guildId: string,
+  channelId: string,
+): Promise<void> {
+  const date = new Date();
+  date.setUTCHours(0, 0, 0, 0);
+  await db.translationStat
+    .upsert({
+      where: { guildId_channelId_date: { guildId, channelId, date } },
+      update: { count: { increment: 1 } },
+      create: { guildId, channelId, date, count: 1 },
+    })
+    .catch((err) =>
+      console.error("[messageCreate] Failed to upsert TranslationStat:", err),
+    );
+}
+
+async function sendViaWebhook(
+  targetChannel: TextChannel,
+  channelRecord: TranslationChannel,
+  content: string | undefined,
+  attachments: (AttachmentPayload & { tooBig?: boolean })[],
+  stickerText: string,
+  displayName: string,
+  avatarURL: string,
+): Promise<string[]> {
+  const webhook = await getOrCreateWebhook(targetChannel, channelRecord);
+
+  // Separate oversized attachments — include their CDN links inline instead
+  const sendableFiles = attachments.filter((a) => !(a as { tooBig?: boolean }).tooBig);
+  const bigFileLinks = attachments
+    .filter((a) => (a as { tooBig?: boolean }).tooBig)
+    .map((a) => `📎 [${a.name}](${a.attachment})`);
+
+  // Assemble full content: translated text + stickers + big file links
+  const parts = [content, stickerText, ...bigFileLinks].filter(Boolean);
+  const fullContent = parts.join("\n").trim() || undefined;
+
+  const chunks = fullContent ? splitContent(fullContent) : [""];
+
+  const sentIds: string[] = [];
+
+  // First chunk carries the attachments
+  const first = await webhook.send({
+    content: chunks[0] || undefined,
+    username: displayName,
+    avatarURL,
+    ...(sendableFiles.length > 0 ? { files: sendableFiles } : {}),
+    allowedMentions: ALLOWED_MENTIONS,
+  });
+  sentIds.push(first.id);
+
+  // Overflow chunks
+  for (const chunk of chunks.slice(1)) {
+    const msg = await webhook.send({
+      content: chunk,
+      username: displayName,
+      avatarURL,
+      allowedMentions: ALLOWED_MENTIONS,
+    });
+    sentIds.push(msg.id);
+  }
+
+  return sentIds;
+}
+
+// ── Event ─────────────────────────────────────────────────────────────────────
 
 const event: BotEvent<"messageCreate"> = {
   name: "messageCreate",
 
   async execute(message: Message) {
-    // ── Ignore bots and webhook-forwarded messages (prevents translation loops) ──
-    if (message.author.bot || message.webhookId) return;
+    // ── Pre-flight ────────────────────────────────────────────────────────────
+    if (message.author.bot) return;
+    if (message.webhookId && isOwnWebhook(message.webhookId)) return;
+    if (message.system) return;
+    if (!message.guild) return;
 
-    // E6: Ensure the source channel is a proper TextChannel before any webhook work.
-    if (!(message.channel instanceof TextChannel)) {
-      console.warn(
-        `[messageCreate] Channel ${message.channelId} is not a TextChannel, skipping.`,
-      );
+    // Thread messages: check parent channel membership
+    let effectiveChannelId: string;
+    let isThread = false;
+    let threadName: string | null = null;
+
+    if (message.channel instanceof ThreadChannel) {
+      if (!message.channel.parentId) return;
+      effectiveChannelId = message.channel.parentId;
+      isThread = true;
+      threadName = message.channel.name;
+    } else if (message.channel instanceof TextChannel) {
+      effectiveChannelId = message.channelId;
+    } else {
       return;
     }
-    const sourceChannel = message.channel;
 
-    // ── Check if this channel is part of a translation group ─────────────────
-    const sourceMember = await db.channelGroupMember.findFirst({
-      where: { channelId: message.channelId },
+    // ── DB lookup ─────────────────────────────────────────────────────────────
+    const sourceRecord = await db.translationChannel.findUnique({
+      where: { channelId: effectiveChannelId },
     });
-    if (!sourceMember) return;
+    if (!sourceRecord) return;
 
-    // ── Load the full group with all sibling channels ─────────────────────────
-    const group = await db.channelGroup.findUnique({
-      where: { id: sourceMember.groupId },
-      include: { members: true },
+    const group = await db.translationGroup.findUnique({
+      where: { id: sourceRecord.groupId },
+      include: { channels: true },
     });
     if (!group) return;
 
-    const siblings = group.members.filter(
-      (m) => m.channelId !== message.channelId,
+    const siblings = group.channels.filter(
+      (ch) => ch.channelId !== effectiveChannelId,
     );
     if (siblings.length === 0) return;
 
-    const guildId = message.guildId;
-    if (!guildId) return;
+    const guildId = message.guild.id;
 
-    const sourceLanguage = sourceMember.languageCode;
-    const hasText = message.content.trim().length > 0;
-    const attachments = buildAttachments(message);
-
-    // Use member's nickname if available, otherwise fall back to Discord name
-    const displayName = message.member?.nickname ?? message.author.displayName;
-
-    // ── Language detection ────────────────────────────────────────────────────
-    // Skip detection entirely if there is no text content (image-only, audio, etc.)
-    let detected: { lang: string; confidence: number } | null = null;
-
-    if (hasText) {
-      detected = await detectLanguage(message.content);
+    // ── Rate limiting ─────────────────────────────────────────────────────────
+    if (!checkRateLimit(guildId, message.author.id)) {
+      console.log(
+        `[messageCreate] Rate limit exceeded for user ${message.author.id} in guild ${guildId}`,
+      );
+      return;
     }
 
-    const detectedLanguage = detected?.lang ?? "unknown";
+    // ── Content classification ────────────────────────────────────────────────
+    const rawText = message.content.trim();
+    const hasText = rawText.length > 0;
+    const hasAttachments = message.attachments.size > 0;
+    const hasStickers = message.stickers.size > 0;
 
-    // T5: use the configured channel language when detection is uncertain so
-    // stats don't accumulate meaningless "unknown" source-language entries.
-    const effectiveSourceLanguage =
-      detected !== null &&
-      detected.confidence >= CONFIDENCE_THRESHOLD &&
-      detectedLanguage !== "unknown"
-        ? detectedLanguage
-        : sourceLanguage;
+    if (!hasText && !hasAttachments && !hasStickers) return;
 
-    // A message is considered "correct language" if:
-    //   - there is no text to detect on
-    //   - detection confidence is below the threshold
-    //   - the detected language matches the channel's expected language
-    const confidenceOk =
-      detected !== null && detected.confidence >= CONFIDENCE_THRESHOLD;
-    const languageMismatch = confidenceOk && detected!.lang !== sourceLanguage;
+    const attachments = buildAttachments(message);
+    const stickerText = buildStickerText(message);
+    const displayName = buildDisplayName(message);
+    const avatarURL = message.author.displayAvatarURL();
+    const sourceLang = sourceRecord.language;
 
-    // ── Correct language mismatch in the source channel ───────────────────────
-    // Repost a translated version via webhook first, then delete the original
-    // only after the corrected message is safely sent.
-    if (languageMismatch) {
-      try {
-        const sourceWebhook = await getOrCreateWebhook(sourceChannel);
+    // Reply prefix
+    const replyPrefix = message.reference ? "↩️ Reply\n" : "";
 
-        // Translate to the channel's expected language; voice messages carry no text.
-        const correctedText = hasText
-          ? await translateText(message.content, sourceLanguage).catch(
-              (err) => {
-                console.error(
-                  "[messageCreate] Source translation failed:",
-                  err,
-                );
-                return message.content; // fallback to original
-              },
-            )
-          : "";
-
-        // E1: split to honour Discord's 2000-char limit
-        const correctedChunks = correctedText ? splitContent(correctedText) : [];
-        await sourceWebhook.send({
-          content: correctedChunks[0] || undefined,
-          username: displayName,
-          avatarURL: message.author.displayAvatarURL(),
-          ...(attachments.length > 0 ? { files: attachments } : {}),
-        });
-        for (const chunk of correctedChunks.slice(1)) {
-          await sourceWebhook
-            .send({ content: chunk, username: displayName, avatarURL: message.author.displayAvatarURL() })
-            .catch((err) =>
-              console.error("[messageCreate] Failed to send correction overflow chunk:", err),
-            );
-        }
-
-        // Delete original — if it fails (missing permissions), log and keep the
-        // corrected message so the content and attachments are not lost.
-        await message
-          .delete()
-          .catch((err) =>
-            console.error(
-              `[messageCreate] Failed to delete message ${message.id}:`,
-              err,
-            ),
-          );
-
-        if (hasText) {
-          await recordTranslationEvent({
-            guildId,
-            sourceChannelId: message.channelId,
-            targetChannelId: message.channelId,
-            sourceMessageId: message.id,
-            sourceLanguage: effectiveSourceLanguage,
-            targetLanguage: sourceLanguage,
-            kind: "SOURCE_CORRECTION",
-          });
-        }
-      } catch (err) {
-        console.error(
-          "[messageCreate] Failed to repost corrected message in source channel:",
-          err,
-        );
+    // ── Language detection (only to catch wrong-language messages) ────────────
+    let languageMismatch = false;
+    // detectedLang is the actual language of the text — used as source in the mismatch flow
+    let detectedLang: string = sourceLang;
+    if (hasText) {
+      // Strip Discord tokens before detection: large mention IDs like <@123456789012345678>
+      // push Argos's confidence below the threshold, causing mismatch to be missed.
+      const textForDetection = sanitizeTextForDetection(rawText);
+      const detected = await detectLanguage(textForDetection);
+      if (
+        detected.confidence >= CONFIDENCE_THRESHOLD &&
+        detected.lang !== "unknown" &&
+        detected.lang !== sourceLang
+      ) {
+        languageMismatch = true;
+        detectedLang = detected.lang;
       }
     }
 
-    // ── Forward (with translation) to every sibling channel ──────────────────
-    for (const sibling of siblings) {
-      try {
-        // B3: fall back to API fetch if the channel is not in the local cache
-        const siblingChannel = (
-          message.client.channels.cache.get(sibling.channelId) ??
-          (await message.client.channels
-            .fetch(sibling.channelId)
-            .catch(() => null))
-        ) as TextChannel | null;
+    // ── Wrong-language mismatch flow ──────────────────────────────────────────
+    if (languageMismatch) {
+      // Delete original first, silently absorb permission errors
+      await message
+        .delete()
+        .catch((err) =>
+          console.warn(`[messageCreate] Could not delete wrong-lang message ${message.id}:`, err),
+        );
 
-        if (!siblingChannel) {
+      // Translate and forward to ALL channels in the group (including source)
+      for (const targetRecord of group.channels) {
+        try {
+          const targetChannelId = targetRecord.channelId;
+          const targetLang = targetRecord.language;
+
+          const targetDiscordChannel = (
+            message.client.channels.cache.get(targetChannelId) ??
+            (await message.client.channels.fetch(targetChannelId).catch(() => null))
+          ) as TextChannel | null;
+
+          if (!(targetDiscordChannel instanceof TextChannel)) continue;
+
+          let translatedText = rawText;
+          if (hasText && !isEmojiOrSymbolOnly(rawText)) {
+            // Use detectedLang (the actual language of the text) as source, not the
+            // channel's configured language — they differ by definition in this branch.
+            translatedText = await translateText(rawText, detectedLang, targetLang).catch(
+              (err) => {
+                console.error(
+                  `[messageCreate] Mismatch translation to ${targetLang} failed:`,
+                  err,
+                );
+                return rawText;
+              },
+            );
+          }
+
+          const content = hasText
+            ? replyPrefix + translatedText
+            : replyPrefix || undefined;
+
+          const sentIds = await sendViaWebhook(
+            targetDiscordChannel,
+            targetRecord,
+            content || undefined,
+            attachments,
+            stickerText,
+            displayName,
+            avatarURL,
+          );
+
+          storeForwardedMessage(guildId, message.id, targetChannelId, sentIds);
+          await upsertTranslationStat(guildId, targetChannelId);
+        } catch (err) {
+          console.error(
+            `[messageCreate] Mismatch forward to ${targetRecord.channelId} failed:`,
+            err,
+          );
+        }
+      }
+      return;
+    }
+
+    // ── Normal forwarding flow ────────────────────────────────────────────────
+    for (const siblingRecord of siblings) {
+      try {
+        const targetChannelId = siblingRecord.channelId;
+        const targetLang = siblingRecord.language;
+
+        // Resolve thread target if needed
+        let targetDiscordChannel: TextChannel | null = null;
+
+        if (isThread && threadName) {
+          const parentChannel = (
+            message.client.channels.cache.get(targetChannelId) ??
+            (await message.client.channels.fetch(targetChannelId).catch(() => null))
+          ) as TextChannel | null;
+
+          if (parentChannel instanceof TextChannel) {
+            // Find or create a thread with the same name in the sibling channel
+            try {
+              const threads = await parentChannel.threads.fetchActive();
+              let targetThread = threads.threads.find((t) => t.name === threadName);
+              if (!targetThread) {
+                targetThread = await parentChannel.threads.create({
+                  name: threadName,
+                  autoArchiveDuration: 1440,
+                });
+              }
+              // ThreadChannels accept webhook messages via the parent channel webhook
+              // with a thread_id. We fall back to parent channel for webhook send.
+              targetDiscordChannel = parentChannel;
+            } catch (threadErr) {
+              console.warn(
+                `[messageCreate] Thread handling failed for ${targetChannelId}, falling back to parent:`,
+                threadErr,
+              );
+              targetDiscordChannel = parentChannel;
+            }
+          }
+        } else {
+          targetDiscordChannel = (
+            message.client.channels.cache.get(targetChannelId) ??
+            (await message.client.channels.fetch(targetChannelId).catch(() => null))
+          ) as TextChannel | null;
+        }
+
+        if (!(targetDiscordChannel instanceof TextChannel)) {
           console.warn(
-            `[messageCreate] Sibling channel ${sibling.channelId} not in cache and fetch failed.`,
+            `[messageCreate] Could not resolve TextChannel for ${targetChannelId}, skipping.`,
           );
           continue;
         }
 
-        const webhook = await getOrCreateWebhook(siblingChannel);
-
-        // Translate text content; skip translation for attachment-only messages.
-        let translatedText = "";
+        // Translate text if needed
+        let translatedText = rawText;
         if (hasText) {
-          translatedText = await translateText(
-            message.content,
-            sibling.languageCode,
-          ).catch((err) => {
-            console.error(
-              `[messageCreate] Translation to ${sibling.languageCode} failed:`,
-              err,
-            );
-            return message.content; // fallback to original
-          });
-        }
-
-        // E1: split translated text to honour Discord's 2000-char limit.
-        // Only the first chunk's message ID is tracked for edit/delete sync.
-        const chunks = translatedText ? splitContent(translatedText) : [];
-        const sent = await webhook.send({
-          content: chunks[0] || undefined,
-          username: displayName,
-          avatarURL: message.author.displayAvatarURL(),
-          ...(attachments.length > 0 ? { files: attachments } : {}),
-        });
-        for (const chunk of chunks.slice(1)) {
-          await webhook
-            .send({ content: chunk, username: displayName, avatarURL: message.author.displayAvatarURL() })
-            .catch((err) =>
+          if (sourceLang === targetLang || isEmojiOrSymbolOnly(rawText)) {
+            translatedText = rawText;
+          } else {
+            try {
+              translatedText = await translateText(rawText, sourceLang, targetLang);
+            } catch (err) {
               console.error(
-                `[messageCreate] Failed to send overflow chunk to ${sibling.channelId}:`,
+                `[messageCreate] Translation to ${targetLang} failed (all retries exhausted):`,
                 err,
-              ),
-            );
+              );
+              // Notify author ephemerally and skip this channel
+              await message
+                .reply({
+                  content:
+                    "⚠️ Translation service is currently unavailable. Your message was not forwarded.",
+                })
+                .catch(() => {});
+              continue;
+            }
+          }
         }
 
-        if (hasText) {
-          await recordTranslationEvent({
-            guildId,
-            sourceChannelId: message.channelId,
-            targetChannelId: sibling.channelId,
-            sourceMessageId: message.id,
-            sourceLanguage: effectiveSourceLanguage,
-            targetLanguage: sibling.languageCode,
-            kind: "FORWARDED",
-          });
-        }
+        const content = hasText
+          ? replyPrefix + translatedText
+          : replyPrefix || undefined;
 
-        if (!languageMismatch) {
-          await db.forwardedMessage
-            .create({
-              data: {
-                sourceMessageId: message.id,
-                sourceChannelId: message.channelId,
-                targetChannelId: sibling.channelId,
-                webhookMessageId: sent.id,
-              },
-            })
-            .catch((err) =>
-              console.error(
-                `[messageCreate] Failed to record ForwardedMessage for ${message.id}:`,
-                err,
-              ),
-            );
-        }
+        const sentIds = await sendViaWebhook(
+          targetDiscordChannel,
+          siblingRecord,
+          content || undefined,
+          attachments,
+          stickerText,
+          displayName,
+          avatarURL,
+        );
+
+        storeForwardedMessage(guildId, message.id, targetChannelId, sentIds);
+        await upsertTranslationStat(guildId, targetChannelId);
+
+        console.log(
+          `[messageCreate] Forwarded ${message.id} → ${targetChannelId} (${sourceLang}→${targetLang}) len=${rawText.length}`,
+        );
       } catch (err) {
-        // A single channel failure must not abort the rest.
         console.error(
-          `[messageCreate] Failed to forward to channel ${sibling.channelId}:`,
+          `[messageCreate] Failed to forward to ${siblingRecord.channelId}:`,
           err,
         );
       }

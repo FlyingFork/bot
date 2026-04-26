@@ -1,66 +1,57 @@
 import { Message, PartialMessage, WebhookClient } from "discord.js";
 import { BotEvent } from "@/types/index";
 import db from "@/utils/db";
+import { getForwardedMessages, deleteForwardedMessages } from "@/utils/messageCache";
 
 const event: BotEvent<"messageDelete"> = {
   name: "messageDelete",
 
   async execute(message: Message | PartialMessage) {
-    // Partials only guarantee .id — that is all we need for the DB lookup.
-    const records = await db.forwardedMessage.findMany({
-      where: { sourceMessageId: message.id },
-    });
+    const guildId = message.guildId;
+    if (!guildId) return;
 
-    if (records.length === 0) return;
+    const forwardMap = getForwardedMessages(guildId, message.id);
+    if (!forwardMap || forwardMap.size === 0) return;
 
-    const targetChannelIds = [...new Set(records.map((r) => r.targetChannelId))];
-    const webhookRows = await db.channelWebhook.findMany({
+    const targetChannelIds = [...forwardMap.keys()];
+    const webhookRows = await db.translationChannel.findMany({
       where: { channelId: { in: targetChannelIds } },
+      select: { channelId: true, webhookId: true, webhookToken: true },
     });
 
     const webhookByChannel = new Map(
-      webhookRows.map((row) => [row.channelId, row]),
+      webhookRows
+        .filter((r) => r.webhookId && r.webhookToken)
+        .map((r) => [r.channelId, r]),
     );
 
-    // M1: reuse WebhookClient instances within this handler execution
-    const webhookClientCache = new Map<string, WebhookClient>();
+    const clientCache = new Map<string, WebhookClient>();
 
-    for (const record of records) {
-      const webhookRow = webhookByChannel.get(record.targetChannelId);
-      if (!webhookRow) {
-        console.warn(
-          `[messageDelete] No webhook record for channel ${record.targetChannelId}, skipping.`,
-        );
+    for (const [targetChannelId, webhookMsgIds] of forwardMap.entries()) {
+      const record = webhookByChannel.get(targetChannelId);
+      if (!record?.webhookId || !record.webhookToken) {
+        console.warn(`[messageDelete] No webhook record for ${targetChannelId}, skipping.`);
         continue;
       }
 
-      let client = webhookClientCache.get(webhookRow.webhookId);
+      let client = clientCache.get(record.webhookId);
       if (!client) {
-        client = new WebhookClient({
-          id: webhookRow.webhookId,
-          token: webhookRow.webhookToken,
-        });
-        webhookClientCache.set(webhookRow.webhookId, client);
+        client = new WebhookClient({ id: record.webhookId, token: record.webhookToken });
+        clientCache.set(record.webhookId, client);
       }
 
-      await client
-        .deleteMessage(record.webhookMessageId)
-        .catch((err) =>
-          console.error(
-            `[messageDelete] Failed to delete webhook message ${record.webhookMessageId} in channel ${record.targetChannelId}:`,
-            err,
-          ),
-        );
+      for (const msgId of webhookMsgIds) {
+        await client.deleteMessage(msgId).catch((err) => {
+          if ((err as { code?: number }).code === 10008) {
+            // Message already deleted — expected, not an error
+          } else {
+            console.error(`[messageDelete] Failed to delete webhook message ${msgId}:`, err);
+          }
+        });
+      }
     }
 
-    await db.forwardedMessage
-      .deleteMany({ where: { sourceMessageId: message.id } })
-      .catch((err) =>
-        console.error(
-          `[messageDelete] Failed to clean up ForwardedMessage records for ${message.id}:`,
-          err,
-        ),
-      );
+    deleteForwardedMessages(guildId, message.id);
   },
 };
 

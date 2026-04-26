@@ -8,10 +8,10 @@ const client = new ExtendedClient({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildMessages, // messageCreate event
-    GatewayIntentBits.MessageContent, // read message.content (privileged)
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildWebhooks,
   ],
-  // Keep partials for message/channel access in translation-forwarded flows.
   partials: [Partials.Message, Partials.Channel],
 });
 
