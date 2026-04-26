@@ -3,10 +3,16 @@ import {
   EmbedBuilder,
   ChatInputCommandInteraction,
   TextChannel,
+  ThreadChannel,
 } from "discord.js";
 import { Command } from "@/types/index";
 import { EMBED_COLOR, LANG_MAP, type LangChoice } from "@/utils/constants";
 import db from "@/utils/db";
+import { isOwnWebhook } from "@/utils/webhook";
+import {
+  getMessageChannelContext,
+  processTranslationMessage,
+} from "@/utils/messageProcessor";
 
 const LANG_CHOICES = [
   { name: "English", value: "english" },
@@ -103,6 +109,25 @@ const command: Command = {
           opt
             .setName("channel")
             .setDescription("Channel to remove")
+            .setRequired(true),
+        ),
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("forceprocess")
+        .setDescription(
+          "Force process an existing message as if bot was online",
+        )
+        .addChannelOption((opt) =>
+          opt
+            .setName("channel")
+            .setDescription("Channel where the message exists")
+            .setRequired(true),
+        )
+        .addStringOption((opt) =>
+          opt
+            .setName("message_id")
+            .setDescription("ID of the message to process")
             .setRequired(true),
         ),
     )
@@ -340,6 +365,118 @@ const command: Command = {
             `✅ <#${channel.id}> removed from group **${groupName}**.`,
           );
         }
+        break;
+      }
+
+      case "forceprocess": {
+        const channel = interaction.options.getChannel("channel", true);
+        const messageId = interaction.options
+          .getString("message_id", true)
+          .trim();
+
+        await interaction.deferReply({ ephemeral: true });
+
+        if (
+          !(channel instanceof TextChannel) &&
+          !(channel instanceof ThreadChannel)
+        ) {
+          await interaction.editReply(
+            "❌ Please select a text channel or thread that contains the target message.",
+          );
+          return;
+        }
+
+        const message = await channel.messages
+          .fetch(messageId)
+          .catch(() => null);
+        if (!message) {
+          await interaction.editReply(
+            `❌ Message **${messageId}** was not found in <#${channel.id}>.`,
+          );
+          return;
+        }
+
+        if (!message.guild || message.guild.id !== guildId) {
+          await interaction.editReply(
+            "❌ This message does not belong to this server.",
+          );
+          return;
+        }
+
+        if (message.author.bot || message.system) {
+          await interaction.editReply(
+            "❌ Bot and system messages cannot be force processed.",
+          );
+          return;
+        }
+
+        if (message.webhookId && isOwnWebhook(message.webhookId)) {
+          await interaction.editReply(
+            "❌ Messages sent by this bot webhook cannot be force processed.",
+          );
+          return;
+        }
+
+        const channelContext = getMessageChannelContext(message);
+        if (!channelContext) {
+          await interaction.editReply(
+            "❌ Only text channel and thread messages are supported.",
+          );
+          return;
+        }
+
+        const sourceRecord = await db.translationChannel.findUnique({
+          where: { channelId: channelContext.effectiveChannelId },
+        });
+        if (!sourceRecord) {
+          await interaction.editReply(
+            `❌ <#${channelContext.effectiveChannelId}> is not part of a translation group.`,
+          );
+          return;
+        }
+
+        const group = await db.translationGroup.findUnique({
+          where: { id: sourceRecord.groupId },
+          include: { channels: true },
+        });
+
+        if (!group || group.guildId !== guildId) {
+          await interaction.editReply(
+            "❌ The translation group for this message could not be resolved.",
+          );
+          return;
+        }
+
+        const result = await processTranslationMessage(
+          message,
+          sourceRecord,
+          group,
+          {
+            contextTag: "forceprocess",
+            skipRateLimit: true,
+            allowMismatchDelete: true,
+            notifyTranslationFailureToAuthor: false,
+            channelContext,
+          },
+        );
+
+        if (result.reason === "no-targets") {
+          await interaction.editReply(
+            "❌ No sibling channels are available in this translation group.",
+          );
+          return;
+        }
+
+        if (result.reason === "no-content") {
+          await interaction.editReply(
+            "❌ This message has no text, attachments, or stickers to process.",
+          );
+          return;
+        }
+
+        await interaction.editReply(
+          `✅ Force processed message **${message.id}** from <#${message.channelId}> and forwarded to **${result.forwardedCount}** channel(s)${result.mismatchDetected ? " (language mismatch flow)." : "."}`,
+        );
         break;
       }
 
