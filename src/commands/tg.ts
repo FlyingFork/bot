@@ -54,6 +54,43 @@ const command: Command = {
     )
     .addSubcommand((sub) =>
       sub
+        .setName("link")
+        .setDescription("Create a group and link two channels in one step")
+        .addStringOption((opt) =>
+          opt
+            .setName("group")
+            .setDescription("Unique name for this group")
+            .setRequired(true),
+        )
+        .addChannelOption((opt) =>
+          opt
+            .setName("channel_one")
+            .setDescription("First channel to link")
+            .setRequired(true),
+        )
+        .addStringOption((opt) =>
+          opt
+            .setName("language_one")
+            .setDescription("Language for the first channel")
+            .setRequired(true)
+            .addChoices(...LANG_CHOICES),
+        )
+        .addChannelOption((opt) =>
+          opt
+            .setName("channel_two")
+            .setDescription("Second channel to link")
+            .setRequired(true),
+        )
+        .addStringOption((opt) =>
+          opt
+            .setName("language_two")
+            .setDescription("Language for the second channel")
+            .setRequired(true)
+            .addChoices(...LANG_CHOICES),
+        ),
+    )
+    .addSubcommand((sub) =>
+      sub
         .setName("removechannel")
         .setDescription("Remove a channel from its translation group")
         .addStringOption((opt) =>
@@ -72,7 +109,9 @@ const command: Command = {
     .addSubcommand((sub) =>
       sub
         .setName("delete")
-        .setDescription("Delete an entire translation group and all its channels")
+        .setDescription(
+          "Delete an entire translation group and all its channels",
+        )
         .addStringOption((opt) =>
           opt
             .setName("group")
@@ -92,7 +131,10 @@ const command: Command = {
     const sub = interaction.options.getSubcommand();
     const guildId = interaction.guildId;
     if (!guildId) {
-      await interaction.reply({ content: "This command can only be used inside a server.", ephemeral: true });
+      await interaction.reply({
+        content: "This command can only be used inside a server.",
+        ephemeral: true,
+      });
       return;
     }
 
@@ -102,9 +144,13 @@ const command: Command = {
         await interaction.deferReply({ ephemeral: true });
         try {
           await db.translationGroup.create({ data: { guildId, name } });
-          await interaction.editReply(`✅ Translation group **${name}** created. Use \`/tg addchannel\` to add channels.`);
+          await interaction.editReply(
+            `✅ Translation group **${name}** created. Use \`/tg addchannel\` to add channels.`,
+          );
         } catch {
-          await interaction.editReply(`❌ A group named **${name}** already exists in this server.`);
+          await interaction.editReply(
+            `❌ A group named **${name}** already exists in this server.`,
+          );
         }
         break;
       }
@@ -112,13 +158,18 @@ const command: Command = {
       case "addchannel": {
         const groupName = interaction.options.getString("group", true).trim();
         const channel = interaction.options.getChannel("channel", true);
-        const langChoice = interaction.options.getString("language", true) as LangChoice;
+        const langChoice = interaction.options.getString(
+          "language",
+          true,
+        ) as LangChoice;
         const language = LANG_MAP[langChoice];
 
         await interaction.deferReply({ ephemeral: true });
 
         if (!(channel instanceof TextChannel)) {
-          await interaction.editReply("❌ Only text channels can be added to translation groups.");
+          await interaction.editReply(
+            "❌ Only text channels can be added to translation groups.",
+          );
           return;
         }
 
@@ -127,7 +178,9 @@ const command: Command = {
         });
 
         if (!group) {
-          await interaction.editReply(`❌ No group named **${groupName}** found in this server.`);
+          await interaction.editReply(
+            `❌ No group named **${groupName}** found in this server.`,
+          );
           return;
         }
 
@@ -148,9 +201,107 @@ const command: Command = {
           data: { channelId: channel.id, language, groupId: group.id },
         });
 
-        const langLabel = Object.entries(LANG_MAP).find(([, v]) => v === language)?.[0] ?? language;
+        const langLabel =
+          Object.entries(LANG_MAP).find(([, v]) => v === language)?.[0] ??
+          language;
         await interaction.editReply(
           `✅ <#${channel.id}> added to **${groupName}** as **${langLabel}**.`,
+        );
+        break;
+      }
+
+      case "link": {
+        const groupName = interaction.options.getString("group", true).trim();
+        const channelOne = interaction.options.getChannel("channel_one", true);
+        const channelTwo = interaction.options.getChannel("channel_two", true);
+        const langChoiceOne = interaction.options.getString(
+          "language_one",
+          true,
+        ) as LangChoice;
+        const langChoiceTwo = interaction.options.getString(
+          "language_two",
+          true,
+        ) as LangChoice;
+        const languageOne = LANG_MAP[langChoiceOne];
+        const languageTwo = LANG_MAP[langChoiceTwo];
+
+        await interaction.deferReply({ ephemeral: true });
+
+        if (
+          !(channelOne instanceof TextChannel) ||
+          !(channelTwo instanceof TextChannel)
+        ) {
+          await interaction.editReply(
+            "❌ Only text channels can be linked in translation groups.",
+          );
+          return;
+        }
+
+        if (channelOne.id === channelTwo.id) {
+          await interaction.editReply(
+            "❌ Please select two different channels.",
+          );
+          return;
+        }
+
+        if (languageOne === languageTwo) {
+          await interaction.editReply(
+            "❌ Please choose different languages for each channel.",
+          );
+          return;
+        }
+
+        const [groupExists, existingChannels] = await Promise.all([
+          db.translationGroup.findUnique({
+            where: { guildId_name: { guildId, name: groupName } },
+          }),
+          db.translationChannel.findMany({
+            where: { channelId: { in: [channelOne.id, channelTwo.id] } },
+            include: { group: true },
+          }),
+        ]);
+
+        if (groupExists) {
+          await interaction.editReply(
+            `❌ A group named **${groupName}** already exists in this server.`,
+          );
+          return;
+        }
+
+        if (existingChannels.length > 0) {
+          const lines = existingChannels.map(
+            (record) =>
+              `• <#${record.channelId}> is already in **${record.group.name}**`,
+          );
+          await interaction.editReply(
+            `❌ One or more channels are already linked:\n${lines.join("\n")}`,
+          );
+          return;
+        }
+
+        await db.$transaction(async (tx) => {
+          const group = await tx.translationGroup.create({
+            data: { guildId, name: groupName },
+          });
+
+          await tx.translationChannel.createMany({
+            data: [
+              {
+                channelId: channelOne.id,
+                language: languageOne,
+                groupId: group.id,
+              },
+              {
+                channelId: channelTwo.id,
+                language: languageTwo,
+                groupId: group.id,
+              },
+            ],
+          });
+        });
+
+        await interaction.editReply(
+          `✅ Linked <#${channelOne.id}> (${langChoiceOne}) ↔ <#${channelTwo.id}> (${langChoiceTwo}) in **${groupName}**.`,
         );
         break;
       }
@@ -201,12 +352,16 @@ const command: Command = {
         });
 
         if (!group) {
-          await interaction.editReply(`❌ No group named **${groupName}** found in this server.`);
+          await interaction.editReply(
+            `❌ No group named **${groupName}** found in this server.`,
+          );
           return;
         }
 
         await db.translationGroup.delete({ where: { id: group.id } });
-        await interaction.editReply(`✅ Group **${groupName}** and all its channels have been deleted.`);
+        await interaction.editReply(
+          `✅ Group **${groupName}** and all its channels have been deleted.`,
+        );
         break;
       }
 
@@ -220,7 +375,9 @@ const command: Command = {
         });
 
         if (groups.length === 0) {
-          await interaction.editReply("No translation groups configured in this server. Use `/tg create` to get started.");
+          await interaction.editReply(
+            "No translation groups configured in this server. Use `/tg create` to get started.",
+          );
           return;
         }
 
@@ -232,19 +389,25 @@ const command: Command = {
         for (const group of groups.slice(0, 25)) {
           const channelLines = group.channels.map((ch) => {
             const langLabel =
-              Object.entries(LANG_MAP).find(([, v]) => v === ch.language)?.[0] ??
-              ch.language;
+              Object.entries(LANG_MAP).find(
+                ([, v]) => v === ch.language,
+              )?.[0] ?? ch.language;
             return `<#${ch.channelId}> — ${langLabel}`;
           });
           embed.addFields({
             name: group.name,
-            value: channelLines.length > 0 ? channelLines.join("\n") : "*(no channels)*",
+            value:
+              channelLines.length > 0
+                ? channelLines.join("\n")
+                : "*(no channels)*",
             inline: false,
           });
         }
 
         if (groups.length > 25) {
-          embed.setFooter({ text: `Showing first 25 of ${groups.length} groups.` });
+          embed.setFooter({
+            text: `Showing first 25 of ${groups.length} groups.`,
+          });
         }
 
         await interaction.editReply({ embeds: [embed] });
@@ -252,7 +415,10 @@ const command: Command = {
       }
 
       default:
-        await interaction.reply({ content: "Unknown subcommand.", ephemeral: true });
+        await interaction.reply({
+          content: "Unknown subcommand.",
+          ephemeral: true,
+        });
     }
   },
 };
