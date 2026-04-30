@@ -74,7 +74,9 @@ function getLibreConfig(): LibreConfig {
 
   const timeoutMs = timeoutRaw ? Number(timeoutRaw) : LIBRE_TIMEOUT_MS;
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-    throw new Error("[translate] LIBRETRANSLATE_TIMEOUT_MS must be a positive number.");
+    throw new Error(
+      "[translate] LIBRETRANSLATE_TIMEOUT_MS must be a positive number.",
+    );
   }
 
   return {
@@ -128,7 +130,9 @@ export async function checkLibreTranslateHealth(): Promise<LibreTranslateHealth>
         )
       : new Set<string>();
 
-    const missingLanguages = required.filter((lang) => !reportedCodes.has(lang));
+    const missingLanguages = required.filter(
+      (lang) => !reportedCodes.has(lang),
+    );
     const latencyMs = Date.now() - started;
     const ok = missingLanguages.length === 0;
 
@@ -158,7 +162,9 @@ export async function checkLibreTranslateHealth(): Promise<LibreTranslateHealth>
 // ── Supported language helpers ────────────────────────────────────────────────
 
 export function isLanguageSupported(code: string): boolean {
-  return (SUPPORTED_LANGS as readonly string[]).includes(normalizeLanguageCode(code));
+  return (SUPPORTED_LANGS as readonly string[]).includes(
+    normalizeLanguageCode(code),
+  );
 }
 
 /**
@@ -176,13 +182,14 @@ export function isEmojiOrSymbolOnly(text: string): boolean {
 // timestamps — those would be mangled or translated incorrectly.
 
 const PLACEHOLDER_PATTERNS: RegExp[] = [
-  /```[\s\S]*?```/g,        // code blocks (highest priority)
-  /`[^`]+`/g,               // inline code
+  /```[\s\S]*?```/g, // code blocks (highest priority)
+  /`[^`]+`/g, // inline code
+  /[\p{Extended_Pictographic}\u200d\uFE0F]+/gu, // Unicode emoji sequences (ZWJ, VS)
   /<t:\d+(?::[tTdDfFR])?>/g, // Discord timestamps
-  /<a?:\w+:\d+>/g,          // custom emoji
-  /<@!?\d+>/g,              // user mentions
-  /<@&\d+>/g,               // role mentions
-  /<#\d+>/g,                // channel mentions
+  /<a?:\w+:\d+>/g, // custom emoji
+  /<@!?\d+>/g, // user mentions
+  /<@&\d+>/g, // role mentions
+  /<#\d+>/g, // channel mentions
   /https?:\/\/[^\s<>[\]{}|\\^`"]*[^\s<>[\]{}|\\^`".,;:!?()]/g, // URLs
 ];
 
@@ -210,7 +217,11 @@ function extractPlaceholders(text: string, token: string): ExtractResult {
   return { text: result, placeholders };
 }
 
-function restorePlaceholders(text: string, placeholders: string[], token: string): string {
+function restorePlaceholders(
+  text: string,
+  placeholders: string[],
+  token: string,
+): string {
   // token is always 6 digits, so (\d+) after it captures only the index.
   return text.replace(
     new RegExp(`==${token}(\\d+)==`, "g"),
@@ -292,7 +303,10 @@ async function callLibreTranslate(
         target: targetLang,
         format: "text",
       });
-      const { data } = await client.post<LibreTranslateResponse>("/translate", payload);
+      const { data } = await client.post<LibreTranslateResponse>(
+        "/translate",
+        payload,
+      );
       const translated = data?.translatedText;
       if (typeof translated !== "string") {
         throw new Error("Invalid response shape from LibreTranslate.");
@@ -306,7 +320,9 @@ async function callLibreTranslate(
     }
   }
 
-  throw new Error(`LibreTranslate failed after ${RETRY_DELAYS_MS.length + 1} attempts: ${lastError.message}`);
+  throw new Error(
+    `LibreTranslate failed after ${RETRY_DELAYS_MS.length + 1} attempts: ${lastError.message}`,
+  );
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -347,13 +363,26 @@ export async function translateText(
   if (cached !== undefined) return cached;
 
   // 6-digit zero-padded numeric token — pure numbers survive all Argos language models
-  const token = Math.floor(Math.random() * 1_000_000).toString().padStart(6, "0");
-  const { text: masked, placeholders } = extractPlaceholders(normalizedText, token);
+  const token = Math.floor(Math.random() * 1_000_000)
+    .toString()
+    .padStart(6, "0");
+  const { text: masked, placeholders } = extractPlaceholders(
+    normalizedText,
+    token,
+  );
 
   // Handle spoiler tags: translate inner content, re-wrap
-  const withTranslatedSpoilers = await translateSpoilers(masked, normalizedSource, normalizedTarget);
+  const withTranslatedSpoilers = await translateSpoilers(
+    masked,
+    normalizedSource,
+    normalizedTarget,
+  );
 
-  const translated = await callLibreTranslate(withTranslatedSpoilers, normalizedSource, normalizedTarget);
+  const translated = await callLibreTranslate(
+    withTranslatedSpoilers,
+    normalizedSource,
+    normalizedTarget,
+  );
   const result = restorePlaceholders(translated, placeholders, token);
 
   cacheSet(cacheKey, result);

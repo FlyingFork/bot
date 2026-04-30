@@ -16,6 +16,7 @@ import {
   isEmojiOrSymbolOnly,
   sanitizeTextForDetection,
 } from "@/utils/translate";
+import { transformCustomEmojiForGuild } from "@/utils/emoji";
 import { getOrCreateWebhook } from "@/utils/webhook";
 import { checkRateLimit } from "@/utils/rateLimiter";
 import { storeForwardedMessage } from "@/utils/messageCache";
@@ -289,6 +290,16 @@ export async function processTranslationMessage(
             );
             return rawText;
           });
+          try {
+            if (translatedText && targetDiscordChannel?.guild) {
+              translatedText = await transformCustomEmojiForGuild(
+                targetDiscordChannel.guild,
+                translatedText,
+              );
+            }
+          } catch (err) {
+            console.warn(`[${contextTag}] Emoji transform failed:`, err);
+          }
         }
 
         const content = hasText
@@ -397,6 +408,16 @@ export async function processTranslationMessage(
                 .catch(() => {});
             }
             continue;
+          }
+          try {
+            if (translatedText && targetDiscordChannel?.guild) {
+              translatedText = await transformCustomEmojiForGuild(
+                targetDiscordChannel.guild,
+                translatedText,
+              );
+            }
+          } catch (err) {
+            console.warn(`[${contextTag}] Emoji transform failed:`, err);
           }
         }
       }
