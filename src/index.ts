@@ -1,27 +1,54 @@
-import "dotenv/config";
-import { GatewayIntentBits, Partials } from "discord.js";
-import { ExtendedClient } from "@/types/index";
-import { loadCommands, loadEvents } from "@/lib/loaders";
-import { validateTranslationConfig } from "@/utils/translate";
+import {
+  Client,
+  GatewayIntentBits,
+  Partials
+} from "discord.js";
+import { config } from "./config.js";
+import { prisma } from "./db.js";
+import { logger } from "./logger.js";
+import { registerInteractionEvents } from "./events/interactions.js";
+import { registerMessageEvents } from "./events/messages.js";
+import { registerReactionEvents } from "./events/reactions.js";
+import { registerThreadEvents } from "./events/threads.js";
+import { registerChannelEvents } from "./events/channels.js";
+import { refreshAllReactionRoleMessages } from "./commands/roles.js";
 
-const client = new ExtendedClient({
+export const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildMessageReactions,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildWebhooks,
+    GatewayIntentBits.GuildWebhooks
   ],
-  partials: [Partials.Message, Partials.Channel],
+  partials: [Partials.Message, Partials.Channel, Partials.Reaction, Partials.User]
 });
 
-async function main() {
-  if (!process.env.DISCORD_TOKEN) throw new Error("DISCORD_TOKEN is required");
-  if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required");
-  validateTranslationConfig();
-  await loadCommands(client);
-  await loadEvents(client);
-  await client.login(process.env.DISCORD_TOKEN);
-}
+client.once("clientReady", async (readyClient) => {
+  logger.info({ tag: readyClient.user.tag }, "translation bot ready");
+  await refreshAllReactionRoleMessages(readyClient).catch((error) => {
+    logger.warn({ error }, "failed to refresh reaction role messages on startup");
+  });
+});
 
-main().catch(console.error);
+registerInteractionEvents(client);
+registerMessageEvents(client);
+registerReactionEvents(client);
+registerThreadEvents(client);
+registerChannelEvents(client);
+
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("unhandledRejection", (error) => {
+  logger.error({ error }, "unhandled promise rejection");
+});
+
+await client.login(config.discordToken);
+
+async function shutdown(signal: string): Promise<void> {
+  logger.info({ signal }, "shutting down");
+  client.destroy();
+  await prisma.$disconnect();
+  process.exit(0);
+}

@@ -7,31 +7,164 @@ datasource db {
   provider = "postgresql"
 }
 
-model TranslationGroup {
-  id       String               @id @default(cuid())
-  guildId  String
-  name     String
-  channels TranslationChannel[]
-
-  @@unique([guildId, name])
+enum Language {
+  en
+  ru
+  tr
 }
 
-model TranslationChannel {
-  id           String           @id @default(cuid())
-  channelId    String           @unique
-  language     String
-  webhookId    String?
-  webhookToken String?
-  group        TranslationGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  groupId      String
+enum ReactionRoleStatus {
+  PENDING
+  READY
+}
+
+model GuildSettings {
+  guildId           String   @id @map("guild_id")
+  adminLogChannelId String?  @map("admin_log_channel_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("guild_settings")
+}
+
+model TranslationGroup {
+  id        String         @id @default(cuid())
+  guildId   String         @map("guild_id")
+  name      String
+  channels  GroupChannel[]
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
+
+  @@unique([guildId, name])
+  @@map("translation_groups")
+}
+
+model GroupChannel {
+  id        String           @id @default(cuid())
+  guildId   String           @map("guild_id")
+  groupId   String           @map("group_id")
+  channelId String           @map("channel_id")
+  language  Language
+  group     TranslationGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, channelId])
+  @@unique([groupId, language])
+  @@unique([guildId, channelId, language])
+  @@index([guildId, channelId])
+  @@map("group_channels")
+}
+
+model ManagedWebhook {
+  id        String   @id @default(cuid())
+  guildId   String   @map("guild_id")
+  channelId String   @map("channel_id")
+  webhookId String   @map("webhook_id")
+  token     String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([guildId, channelId])
+  @@map("managed_webhooks")
+}
+
+model MessageMap {
+  id               String   @id @default(cuid())
+  guildId          String   @map("guild_id")
+  groupId          String   @map("group_id")
+  sourceChannelId  String   @map("source_channel_id")
+  sourceMessageId  String   @map("source_message_id")
+  targetChannelId  String   @map("target_channel_id")
+  targetMessageIds String[] @map("target_message_ids")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@index([guildId, sourceChannelId, sourceMessageId])
+  @@index([guildId, targetChannelId])
+  @@map("message_maps")
+}
+
+model ThreadMap {
+  id              String   @id @default(cuid())
+  guildId         String   @map("guild_id")
+  groupId         String   @map("group_id")
+  sourceThreadId  String   @map("source_thread_id")
+  sourceChannelId String   @map("source_channel_id")
+  targetThreadId  String   @map("target_thread_id")
+  targetChannelId String   @map("target_channel_id")
+  language        Language
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@unique([guildId, groupId, sourceThreadId, targetChannelId])
+  @@index([guildId, sourceThreadId])
+  @@map("thread_maps")
+}
+
+model ReactionRoleMessage {
+  id        String                   @id @default(cuid())
+  guildId   String                   @map("guild_id")
+  channelId String                   @map("channel_id")
+  messageId String                   @unique @map("message_id")
+  languages Language[]
+  status    ReactionRoleStatus       @default(PENDING)
+  roles     ReactionRoleAssignment[]
+  createdAt DateTime                 @default(now()) @map("created_at")
+  updatedAt DateTime                 @updatedAt @map("updated_at")
+
+  @@index([guildId])
+  @@map("reaction_role_messages")
+}
+
+model ReactionRoleAssignment {
+  id        String              @id @default(cuid())
+  guildId   String              @map("guild_id")
+  messageId String              @map("message_id")
+  language  Language
+  roleId    String              @map("role_id")
+  message   ReactionRoleMessage @relation(fields: [messageId], references: [messageId], onDelete: Cascade)
+  createdAt DateTime            @default(now()) @map("created_at")
+  updatedAt DateTime            @updatedAt @map("updated_at")
+
+  @@unique([messageId, language])
+  @@index([guildId, roleId])
+  @@map("reaction_role_assignments")
+}
+
+model RoleAssignmentAudit {
+  id        String   @id @default(cuid())
+  guildId   String   @map("guild_id")
+  userId    String   @map("user_id")
+  roleId    String   @map("role_id")
+  language  Language
+  assigned  Boolean
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([guildId, userId])
+  @@map("role_assignment_audits")
 }
 
 model TranslationStat {
-  id        String   @id @default(cuid())
-  guildId   String
-  channelId String
-  date      DateTime
-  count     Int      @default(0)
+  id                 String   @id @default(cuid())
+  guildId            String   @map("guild_id")
+  groupId            String   @map("group_id")
+  sourceChannelId    String   @map("source_channel_id")
+  targetChannelId    String   @map("target_channel_id")
+  sourceLanguage     Language @map("source_language")
+  targetLanguage     Language @map("target_language")
+  latencyMs          Int      @map("latency_ms")
+  translatedMessages Int      @default(1) @map("translated_messages")
+  createdAt          DateTime @default(now()) @map("created_at")
 
-  @@unique([guildId, channelId, date])
+  @@index([guildId, createdAt])
+  @@map("translation_stats")
+}
+
+model TranslationApiEvent {
+  id        String   @id @default(cuid())
+  guildId   String?  @map("guild_id")
+  ok        Boolean
+  latencyMs Int?     @map("latency_ms")
+  error     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([guildId, createdAt])
+  @@map("translation_api_events")
 }
