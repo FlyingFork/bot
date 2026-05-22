@@ -1,0 +1,38 @@
+{
+  "allianceMembers": {
+    "template": "Please analyze the provided image and extract the player data from each of the profile cards. Output the data strictly in the JSON format provided below.\n\nData Extraction Rules:\n\n- username: Extract the exact text of the player's name at the top of their card.\n\n- power: Look at the number next to the fist icon. This number ends with an \"M\" (millions). You must convert this into the full integer value by multiplying it by 1,000,000. For example, if the image says \"110.66M\", output 110660000.\n\n- powerPlantLevel: Extract the integer value next to the word \"Level\".\n\n- rank: The image does not contain rank information. Hardcode this value as \"UNDEFINED\" for every user.\n\nOutput Format:\n{JSON_FORMAT}\nAfter outputting the JSON, please provide a brief message reminding the user that the rank value could not be extracted from the image and will need to be manually entered.",
+    "format": {
+      "members": [
+        {
+          "username": "PlayerName",
+          "power": 123456789,
+          "powerPlantLevel": 30,
+          "rank": "R4"
+        }
+      ]
+    }
+  },
+  "allianceSiege": {
+    "template": "Please analyze the provided image and extract the player data from each of the rectangular nameplates. Output the data strictly in the JSON format provided below.\n\nData Extraction Rules:\n\nusername: Extract the exact text of the player's name found next to their profile picture on the nameplate.\n\npower: Look at the number next to the fist icon below the username. This number ends with an \"M\" (millions). You must convert this into the full integer value by multiplying it by 1,000,000. For example, if the image says \"39.17M\", output 39170000. Only extract entries that have a visible power value.\n\nOutput Format:\n{JSON_FORMAT}",
+    "format": {
+      "entries": [
+        {
+          "username": "PlayerName",
+          "power": 98765432
+        }
+      ]
+    }
+  },
+  "exploration": {
+    "template": "Please analyze the provided image and extract the leaderboard data from each player's banner. Output the data strictly in the JSON format provided below.\n\nData Extraction Rules and Filtering:\n\nClan Tag Filter: You must first verify that the player has the exact clan tag [[CLAN_TAG]] at the start of their name. If a player's name does not begin with [[CLAN_TAG]], ignore that entry entirely.\n\nusername: Extract the text of the player's name immediately following the [[CLAN_TAG]] tag. Do not include the clan tag in the JSON output. For example, if the text says \"[[CLAN_TAG]]Hade\", the extracted username is \"Hade\".\n\npower: Look at the number next to the fist icon below the player's name. This number ends with an \"M\" (millions). You must convert this into the full integer value by multiplying it by 1,000,000. For example, if the image says \"41.00M\", output 41000000.\n\nexplorationLevel: Extract the integer value next to the word \"Level\" located in the top right corner of the player's respective banner section.\n\nOutput Format:\n{JSON_FORMAT}",
+    "format": {
+      "entries": [
+        {
+          "username": "PlayerName",
+          "power": 98765432,
+          "explorationLevel": 42
+        }
+      ]
+    }
+  }
+}

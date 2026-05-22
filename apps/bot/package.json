@@ -1,0 +1,30 @@
+{
+  "name": "@tiles-survive/bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx watch src/index.ts",
+    "register:guild": "tsx src/registerCommands.ts guild",
+    "register:global": "tsx src/registerCommands.ts global",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@tiles-survive/database": "*",
+    "@tiles-survive/logger": "*",
+    "@discordjs/rest": "^2.4.3",
+    "discord-api-types": "^0.37.115",
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  }
+}

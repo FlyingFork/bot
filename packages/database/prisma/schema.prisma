@@ -1,0 +1,442 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Language {
+  en
+  ru
+  tr
+}
+
+enum ReactionRoleStatus {
+  PENDING
+  READY
+}
+
+enum AllianceRank {
+  R5
+  R4
+  R3
+  R2
+  R1
+}
+
+enum AllianceEventType {
+  ALLIANCE_SIEGE
+  EXPLORATION
+}
+
+enum ReservoirRaidContactType {
+  DISCORD
+  TELEGRAM
+}
+
+model GuildSettings {
+  guildId           String   @id @map("guild_id")
+  adminLogChannelId String?  @map("admin_log_channel_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("guild_settings")
+}
+
+model TranslationGroup {
+  id        String         @id @default(cuid())
+  guildId   String         @map("guild_id")
+  name      String
+  channels  GroupChannel[]
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
+
+  @@unique([guildId, name])
+  @@map("translation_groups")
+}
+
+model GroupChannel {
+  id        String           @id @default(cuid())
+  guildId   String           @map("guild_id")
+  groupId   String           @map("group_id")
+  channelId String           @map("channel_id")
+  language  Language
+  group     TranslationGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, channelId])
+  @@unique([groupId, language])
+  @@unique([guildId, channelId, language])
+  @@index([guildId, channelId])
+  @@map("group_channels")
+}
+
+model ManagedWebhook {
+  id        String   @id @default(cuid())
+  guildId   String   @map("guild_id")
+  channelId String   @map("channel_id")
+  webhookId String   @map("webhook_id")
+  token     String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([guildId, channelId])
+  @@map("managed_webhooks")
+}
+
+model MessageMap {
+  id               String   @id @default(cuid())
+  guildId          String   @map("guild_id")
+  groupId          String   @map("group_id")
+  sourceChannelId  String   @map("source_channel_id")
+  sourceMessageId  String   @map("source_message_id")
+  targetChannelId  String   @map("target_channel_id")
+  targetMessageIds String[] @map("target_message_ids")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@index([guildId, sourceChannelId, sourceMessageId])
+  @@index([guildId, targetChannelId])
+  @@map("message_maps")
+}
+
+model ThreadMap {
+  id              String   @id @default(cuid())
+  guildId         String   @map("guild_id")
+  groupId         String   @map("group_id")
+  sourceThreadId  String   @map("source_thread_id")
+  sourceChannelId String   @map("source_channel_id")
+  targetThreadId  String   @map("target_thread_id")
+  targetChannelId String   @map("target_channel_id")
+  language        Language
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@unique([guildId, groupId, sourceThreadId, targetChannelId])
+  @@index([guildId, sourceThreadId])
+  @@map("thread_maps")
+}
+
+model ReactionRoleMessage {
+  id        String                   @id @default(cuid())
+  guildId   String                   @map("guild_id")
+  channelId String                   @map("channel_id")
+  messageId String                   @unique @map("message_id")
+  languages Language[]
+  status    ReactionRoleStatus       @default(PENDING)
+  roles     ReactionRoleAssignment[]
+  createdAt DateTime                 @default(now()) @map("created_at")
+  updatedAt DateTime                 @updatedAt @map("updated_at")
+
+  @@index([guildId])
+  @@map("reaction_role_messages")
+}
+
+model ReactionRoleAssignment {
+  id        String              @id @default(cuid())
+  guildId   String              @map("guild_id")
+  messageId String              @map("message_id")
+  language  Language
+  roleId    String              @map("role_id")
+  message   ReactionRoleMessage @relation(fields: [messageId], references: [messageId], onDelete: Cascade)
+  createdAt DateTime            @default(now()) @map("created_at")
+  updatedAt DateTime            @updatedAt @map("updated_at")
+
+  @@unique([messageId, language])
+  @@index([guildId, roleId])
+  @@map("reaction_role_assignments")
+}
+
+model RoleAssignmentAudit {
+  id        String   @id @default(cuid())
+  guildId   String   @map("guild_id")
+  userId    String   @map("user_id")
+  roleId    String   @map("role_id")
+  language  Language
+  assigned  Boolean
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([guildId, userId])
+  @@map("role_assignment_audits")
+}
+
+model TranslationStat {
+  id                 String   @id @default(cuid())
+  guildId            String   @map("guild_id")
+  groupId            String   @map("group_id")
+  sourceChannelId    String   @map("source_channel_id")
+  targetChannelId    String   @map("target_channel_id")
+  sourceLanguage     Language @map("source_language")
+  targetLanguage     Language @map("target_language")
+  latencyMs          Int      @map("latency_ms")
+  translatedMessages Int      @default(1) @map("translated_messages")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@index([guildId, createdAt])
+  @@map("translation_stats")
+}
+
+model TranslationApiEvent {
+  id        String   @id @default(cuid())
+  guildId   String?  @map("guild_id")
+  ok        Boolean
+  latencyMs Int?     @map("latency_ms")
+  error     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([guildId, createdAt])
+  @@map("translation_api_events")
+}
+
+// ── Auth models (better-auth) ──────────────────────────────────────────────────
+// PostgreSQL default UTF8 encoding supports full Unicode — Cyrillic/Turkish fine.
+// Usernames are stored in their original case (no normalization) to avoid
+// Turkish dotted-i casing issues with JavaScript string methods.
+
+model user {
+  id              String    @id
+  name            String
+  email           String    @unique
+  emailVerified   Boolean
+  image           String?
+  createdAt       DateTime
+  updatedAt       DateTime
+  username        String?   @unique
+  displayUsername String?
+  role            String?
+  banned          Boolean?
+  banReason       String?
+  banExpires      DateTime?
+  sessions         session[]
+  accounts         account[]
+  submittedChanges PendingChange[] @relation("PendingChangeSubmitter")
+  reviewedChanges  PendingChange[] @relation("PendingChangeReviewer")
+
+  @@map("user")
+}
+
+model session {
+  id             String   @id
+  expiresAt      DateTime
+  token          String   @unique
+  createdAt      DateTime
+  updatedAt      DateTime
+  ipAddress      String?
+  userAgent      String?
+  userId         String
+  impersonatedBy String?
+  user           user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+model account {
+  id                   String    @id
+  accountId            String
+  providerId           String
+  userId               String
+  user                 user      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken          String?
+  refreshToken         String?
+  idToken              String?
+  accessTokenExpiresAt DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                String?
+  password             String?
+  createdAt            DateTime
+  updatedAt            DateTime
+
+  @@map("account")
+}
+
+model verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime?
+  updatedAt  DateTime?
+
+  @@map("verification")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  targetId  String
+  actorId   String
+  createdAt DateTime @default(now())
+
+  @@map("audit_log")
+}
+
+enum PendingChangeStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PendingChangeType {
+  RAID_REGISTRATIONS
+  EVENT_IMPORT
+}
+
+model PendingChange {
+  id          String              @id @default(cuid())
+  type        PendingChangeType
+  payload     String
+  status      PendingChangeStatus @default(PENDING)
+  submitterId String              @map("submitter_id")
+  submitter   user                @relation("PendingChangeSubmitter", fields: [submitterId], references: [id], onDelete: Cascade)
+  reviewerId  String?             @map("reviewer_id")
+  reviewer    user?               @relation("PendingChangeReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+
+  @@index([status, createdAt])
+  @@map("pending_changes")
+}
+
+model AllianceSettings {
+  id        String   @id @default("primary")
+  name      String   @default("")
+  tag       String   @default("")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("alliance_settings")
+}
+
+model AllianceMember {
+  id                         String                    @id @default(cuid())
+  username                   String                    @unique
+  active                     Boolean                   @default(true)
+  currentRank                AllianceRank?             @map("current_rank")
+  currentPower               BigInt?                   @map("current_power")
+  currentPowerPlantLevel     Int?                      @map("current_power_plant_level")
+  lastRosterImportedAt       DateTime?                 @map("last_roster_imported_at")
+  rosterSnapshots            AllianceRosterSnapshot[]
+  eventSnapshots             AllianceEventSnapshot[]
+  raidParticipants           ReservoirRaidParticipant[]
+  raidSquadPowers            ReservoirRaidSquadPower[]
+  createdAt                  DateTime                  @default(now()) @map("created_at")
+  updatedAt                  DateTime                  @updatedAt @map("updated_at")
+
+  @@index([active, currentPower])
+  @@map("alliance_members")
+}
+
+model AllianceRosterImport {
+  id          String                   @id @default(cuid())
+  actorId     String                   @map("actor_id")
+  snapshots   AllianceRosterSnapshot[]
+  createdAt   DateTime                 @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("alliance_roster_imports")
+}
+
+model AllianceRosterSnapshot {
+  id              String               @id @default(cuid())
+  importId        String               @map("import_id")
+  memberId        String               @map("member_id")
+  power           BigInt
+  powerPlantLevel Int                  @map("power_plant_level")
+  rank            AllianceRank
+  importedAt      DateTime             @default(now()) @map("imported_at")
+  import          AllianceRosterImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  member          AllianceMember       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId, importedAt])
+  @@map("alliance_roster_snapshots")
+}
+
+model AllianceEventImport {
+  id          String                  @id @default(cuid())
+  actorId     String                  @map("actor_id")
+  eventType   AllianceEventType       @map("event_type")
+  snapshots   AllianceEventSnapshot[]
+  createdAt   DateTime                @default(now()) @map("created_at")
+
+  @@index([eventType, createdAt])
+  @@map("alliance_event_imports")
+}
+
+model AllianceEventSnapshot {
+  id               String              @id @default(cuid())
+  importId         String              @map("import_id")
+  memberId         String              @map("member_id")
+  eventType        AllianceEventType   @map("event_type")
+  power            BigInt
+  explorationLevel Int?                @map("exploration_level")
+  importedAt       DateTime            @default(now()) @map("imported_at")
+  import           AllianceEventImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  member           AllianceMember      @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId, eventType, importedAt])
+  @@index([eventType, importedAt])
+  @@map("alliance_event_snapshots")
+}
+
+model ReservoirRaidPlan {
+  id               String                     @id @default(cuid())
+  raidDate         DateTime                   @unique @map("raid_date") @db.Date
+  startsAt         DateTime                   @map("starts_at")
+  publicToken      String                     @unique @map("public_token")
+  registrationOpen Boolean                    @default(true) @map("registration_open")
+  participants     ReservoirRaidParticipant[]
+  assignments      ReservoirRaidAssignment[]
+  createdAt        DateTime                   @default(now()) @map("created_at")
+  updatedAt        DateTime                   @updatedAt @map("updated_at")
+
+  @@map("reservoir_raid_plan")
+}
+
+model ReservoirRaidParticipant {
+  id          String                    @id @default(cuid())
+  planId      String                    @map("plan_id")
+  memberId    String?                   @map("member_id")
+  username    String
+  contactType ReservoirRaidContactType? @map("contact_type")
+  contact     String?
+  confirmed   Boolean                   @default(false)
+  participant Boolean                   @default(false)
+  reservist   Boolean                   @default(false)
+  plan        ReservoirRaidPlan         @relation(fields: [planId], references: [id], onDelete: Cascade)
+  member      AllianceMember?           @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  squadPowers ReservoirRaidSquadPower[]
+  assignments ReservoirRaidAssignment[]
+  createdAt   DateTime                  @default(now()) @map("created_at")
+  updatedAt   DateTime                  @updatedAt @map("updated_at")
+
+  @@unique([planId, username])
+  @@index([planId, memberId])
+  @@map("reservoir_raid_participants")
+}
+
+model ReservoirRaidSquadPower {
+  id            String                    @id @default(cuid())
+  participantId String                    @map("participant_id")
+  memberId      String?                   @map("member_id")
+  squadIndex    Int                       @map("squad_index")
+  power         BigInt
+  participant   ReservoirRaidParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  member        AllianceMember?           @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  createdAt     DateTime                  @default(now()) @map("created_at")
+
+  @@unique([participantId, squadIndex])
+  @@index([memberId, createdAt])
+  @@map("reservoir_raid_squad_powers")
+}
+
+model ReservoirRaidAssignment {
+  id            String                    @id @default(cuid())
+  planId        String                    @map("plan_id")
+  objectiveId   String                    @map("objective_id")
+  participantId String                    @map("participant_id")
+  plan          ReservoirRaidPlan         @relation(fields: [planId], references: [id], onDelete: Cascade)
+  participant   ReservoirRaidParticipant  @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, objectiveId, participantId])
+  @@index([planId, objectiveId])
+  @@map("reservoir_raid_assignments")
+}

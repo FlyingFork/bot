@@ -1,4 +1,4 @@
-name: Deploy to VPS
+name: Deploy Bot to VPS
 
 on:
   push:
@@ -27,6 +27,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate Prisma client
+        run: npm run db:generate
+
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
@@ -40,6 +43,9 @@ jobs:
             --exclude ".git" \
             --exclude ".github" \
             --exclude "node_modules" \
+            --exclude "apps/web" \
+            --exclude "**/.next" \
+            --exclude "**/dist" \
             -e "ssh -i ~/.ssh/deploy_key" \
             ./ "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.VPS_APP_PATH }}/"
 
@@ -55,10 +61,14 @@ jobs:
 
             # Write environment file used by the bot process.
             echo "${{ secrets.VPS_ENV_PRODUCTION }}" > .env
+            echo "${{ secrets.VPS_ENV_PRODUCTION }}" > /apps/web/.env
+            echo "${{ secrets.VPS_ENV_PRODUCTION }}" > /apps/bot/.env
+            echo "${{ secrets.VPS_ENV_PRODUCTION }}" > /packages/database/.env
 
             npm ci
-            npx prisma generate
 
             sudo /bin/systemctl restart "${{ secrets.VPS_SERVICE_NAME }}"
+            sudo /bin/systemctl restart "${{ secrets.VPS_SERVICE_NAME_B }}"
             sudo /bin/systemctl is-active "${{ secrets.VPS_SERVICE_NAME }}"
+            sudo /bin/systemctl is-active "${{ secrets.VPS_SERVICE_NAME_B }}"
           ENDSSH
