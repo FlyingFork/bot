@@ -58,6 +58,8 @@ jobs:
             echo "${{ secrets.VPS_ENV_PRODUCTION }}" > apps/bot/.env
             echo "${{ secrets.VPS_ENV_PRODUCTION }}" > packages/database/.env
 
+            npm run build --workspace=@tiles-survive/web
+
             npm ci
 
             sudo /bin/systemctl restart "${{ secrets.VPS_SERVICE_NAME }}"
