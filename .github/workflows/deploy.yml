@@ -24,12 +24,6 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Generate Prisma client
-        run: npm run db:generate
-
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
@@ -65,7 +59,7 @@ jobs:
             echo "${{ secrets.VPS_ENV_PRODUCTION }}" > /apps/bot/.env
             echo "${{ secrets.VPS_ENV_PRODUCTION }}" > /packages/database/.env
 
-            npm install
+            npm ci
 
             sudo /bin/systemctl restart "${{ secrets.VPS_SERVICE_NAME }}"
             sudo /bin/systemctl restart "${{ secrets.VPS_SERVICE_NAME_B }}"
