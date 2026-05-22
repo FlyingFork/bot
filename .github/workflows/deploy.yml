@@ -54,9 +54,9 @@ jobs:
 
             # Write environment file used by the bot process.
             echo "${{ secrets.VPS_ENV_PRODUCTION }}" > .env
-            echo "${{ secrets.VPS_ENV_PRODUCTION }}" > /apps/web/.env
-            echo "${{ secrets.VPS_ENV_PRODUCTION }}" > /apps/bot/.env
-            echo "${{ secrets.VPS_ENV_PRODUCTION }}" > /packages/database/.env
+            echo "${{ secrets.VPS_ENV_PRODUCTION }}" > apps/web/.env
+            echo "${{ secrets.VPS_ENV_PRODUCTION }}" > apps/bot/.env
+            echo "${{ secrets.VPS_ENV_PRODUCTION }}" > packages/database/.env
 
             npm ci
 
