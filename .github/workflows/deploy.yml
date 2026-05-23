@@ -58,6 +58,7 @@ jobs:
             echo "${{ secrets.VPS_ENV_PRODUCTION }}" > apps/bot/.env
             echo "${{ secrets.VPS_ENV_PRODUCTION }}" > packages/database/.env
 
+            npm run db:generate
             npm run build --workspace=@tiles-survive/web
 
             npm ci
