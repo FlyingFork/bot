@@ -372,174 +372,288 @@ export default async function DashboardPage() {
       </div>
 
       {/* Power leaders + growth */}
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid min-w-0 gap-4 xl:grid-cols-2">
         <DataCard
+          className="min-w-0"
           description={t("leaders.description")}
           title={t("leaders.title")}
         >
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("table.member")}</TableHead>
-                <TableHead>{t("table.rank")}</TableHead>
-                <TableHead className="text-right">{t("table.power")}</TableHead>
-                <TableHead className="text-right">{t("table.plant")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {strongestMembers.length ? (
-                strongestMembers.map((member) => (
-                  <TableRow key={member.id}>
-                    <TableCell className="font-semibold text-text-primary">
+          {strongestMembers.length ? (
+            <>
+              <div className="space-y-2 sm:hidden">
+                {strongestMembers.map((member) => (
+                  <div
+                    key={member.id}
+                    className="rounded-md border border-border-dim bg-base px-3 py-2.5 text-xs"
+                  >
+                    <div className="mb-2 min-w-0">
                       <Link
                         href={`/dashboard/members/${member.id}`}
-                        className="hover:text-cn-cyan"
+                        className="block truncate font-semibold text-text-primary hover:text-cn-cyan"
                       >
                         {member.username}
                       </Link>
-                    </TableCell>
-                    <TableCell>{member.currentRank ?? commonT("unknown")}</TableCell>
-                    <TableCell className="text-right font-mono text-text-primary">
-                      {formatPower(member.currentPower, locale, commonT("unknown"))}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {member.currentPowerPlantLevel ?? commonT("unknown")}
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center text-text-muted">
-                    {t("leaders.empty")}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+                      <span className="text-text-muted">{t("table.rank")}</span>
+                      <span className="min-w-0 text-right text-text-secondary">
+                        {member.currentRank ?? commonT("unknown")}
+                      </span>
+                      <span className="text-text-muted">{t("table.power")}</span>
+                      <span className="min-w-0 break-all text-right font-mono text-text-primary">
+                        {formatPower(member.currentPower, locale, commonT("unknown"))}
+                      </span>
+                      <span className="text-text-muted">{t("table.plant")}</span>
+                      <span className="min-w-0 text-right text-text-secondary">
+                        {member.currentPowerPlantLevel ?? commonT("unknown")}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="hidden sm:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t("table.member")}</TableHead>
+                      <TableHead>{t("table.rank")}</TableHead>
+                      <TableHead className="text-right">{t("table.power")}</TableHead>
+                      <TableHead className="text-right">{t("table.plant")}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {strongestMembers.map((member) => (
+                      <TableRow key={member.id}>
+                        <TableCell className="font-semibold text-text-primary">
+                          <Link
+                            href={`/dashboard/members/${member.id}`}
+                            className="hover:text-cn-cyan"
+                          >
+                            {member.username}
+                          </Link>
+                        </TableCell>
+                        <TableCell>{member.currentRank ?? commonT("unknown")}</TableCell>
+                        <TableCell className="text-right font-mono text-text-primary">
+                          {formatPower(member.currentPower, locale, commonT("unknown"))}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {member.currentPowerPlantLevel ?? commonT("unknown")}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-text-muted">{t("leaders.empty")}</p>
+          )}
         </DataCard>
         <DataCard
+          className="min-w-0"
           description={t("growth.description")}
           title={t("growth.title")}
         >
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("table.member")}</TableHead>
-                <TableHead className="text-right">{t("table.previous")}</TableHead>
-                <TableHead className="text-right">{t("table.latest")}</TableHead>
-                <TableHead className="text-right">{t("table.change")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {growthRows.length ? (
-                growthRows.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell className="font-semibold text-text-primary">
+          {growthRows.length ? (
+            <>
+              <div className="space-y-2 sm:hidden">
+                {growthRows.map((row) => (
+                  <div
+                    key={row.id}
+                    className="rounded-md border border-border-dim bg-base px-3 py-2.5 text-xs"
+                  >
+                    <div className="mb-2 min-w-0">
                       <Link
                         href={`/dashboard/members/${row.id}`}
-                        className="hover:text-cn-cyan"
+                        className="block truncate font-semibold text-text-primary hover:text-cn-cyan"
                       >
                         {row.username}
                       </Link>
-                    </TableCell>
-                    <TableCell className="text-right font-mono">
-                      {formatPower(row.previousPower, locale, commonT("unknown"))}
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-text-primary">
-                      {formatPower(row.currentPower, locale, commonT("unknown"))}
-                    </TableCell>
-                    <TableCell
-                      className={`text-right font-mono ${
-                        row.delta > BigInt(0)
-                          ? "text-cn-success"
-                          : row.delta < BigInt(0)
-                            ? "text-cn-danger"
-                            : "text-text-muted"
-                      }`}
-                    >
-                      {signedPower(row.delta, locale, commonT("unknown"))}
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center text-text-muted">
-                    {t("growth.empty")}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+                      <span className="text-text-muted">{t("table.previous")}</span>
+                      <span className="min-w-0 break-all text-right font-mono text-text-secondary">
+                        {formatPower(row.previousPower, locale, commonT("unknown"))}
+                      </span>
+                      <span className="text-text-muted">{t("table.latest")}</span>
+                      <span className="min-w-0 break-all text-right font-mono text-text-primary">
+                        {formatPower(row.currentPower, locale, commonT("unknown"))}
+                      </span>
+                      <span className="text-text-muted">{t("table.change")}</span>
+                      <span
+                        className={`min-w-0 break-all text-right font-mono ${
+                          row.delta > BigInt(0)
+                            ? "text-cn-success"
+                            : row.delta < BigInt(0)
+                              ? "text-cn-danger"
+                              : "text-text-muted"
+                        }`}
+                      >
+                        {signedPower(row.delta, locale, commonT("unknown"))}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="hidden sm:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t("table.member")}</TableHead>
+                      <TableHead className="text-right">{t("table.previous")}</TableHead>
+                      <TableHead className="text-right">{t("table.latest")}</TableHead>
+                      <TableHead className="text-right">{t("table.change")}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {growthRows.map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell className="font-semibold text-text-primary">
+                          <Link
+                            href={`/dashboard/members/${row.id}`}
+                            className="hover:text-cn-cyan"
+                          >
+                            {row.username}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {formatPower(row.previousPower, locale, commonT("unknown"))}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-text-primary">
+                          {formatPower(row.currentPower, locale, commonT("unknown"))}
+                        </TableCell>
+                        <TableCell
+                          className={`text-right font-mono ${
+                            row.delta > BigInt(0)
+                              ? "text-cn-success"
+                              : row.delta < BigInt(0)
+                                ? "text-cn-danger"
+                                : "text-text-muted"
+                          }`}
+                        >
+                          {signedPower(row.delta, locale, commonT("unknown"))}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-text-muted">{t("growth.empty")}</p>
+          )}
         </DataCard>
       </div>
 
       {/* Top explorers + roster changes */}
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid min-w-0 gap-4 xl:grid-cols-2">
         <DataCard
+          className="min-w-0"
           description={t("topExplorers.description")}
           title={t("topExplorers.title")}
         >
           {topExplorers.length ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("table.member")}</TableHead>
-                  <TableHead className="text-right">
-                    {t("table.explorationLevel")}
-                  </TableHead>
-                  <TableHead className="text-right">{t("table.power")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              <div className="space-y-2 sm:hidden">
                 {topExplorers.map((entry) => (
-                  <TableRow key={entry.member.id}>
-                    <TableCell className="font-semibold text-text-primary">
+                  <div
+                    key={entry.member.id}
+                    className="rounded-md border border-border-dim bg-base px-3 py-2.5 text-xs"
+                  >
+                    <div className="mb-2 min-w-0">
                       <Link
                         href={`/dashboard/members/${entry.member.id}`}
-                        className="hover:text-cn-cyan"
+                        className="block truncate font-semibold text-text-primary hover:text-cn-cyan"
                       >
                         {entry.member.username}
                       </Link>
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-text-primary">
-                      {entry.explorationLevel}
-                    </TableCell>
-                    <TableCell className="text-right font-mono">
-                      {formatPower(entry.power, locale, commonT("unknown"))}
-                    </TableCell>
-                  </TableRow>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+                      <span className="text-text-muted">
+                        {t("table.explorationLevel")}
+                      </span>
+                      <span className="min-w-0 text-right font-mono text-text-primary">
+                        {entry.explorationLevel}
+                      </span>
+                      <span className="text-text-muted">{t("table.power")}</span>
+                      <span className="min-w-0 break-all text-right font-mono text-text-secondary">
+                        {formatPower(entry.power, locale, commonT("unknown"))}
+                      </span>
+                    </div>
+                  </div>
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+              <div className="hidden sm:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t("table.member")}</TableHead>
+                      <TableHead className="text-right">
+                        {t("table.explorationLevel")}
+                      </TableHead>
+                      <TableHead className="text-right">{t("table.power")}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {topExplorers.map((entry) => (
+                      <TableRow key={entry.member.id}>
+                        <TableCell className="font-semibold text-text-primary">
+                          <Link
+                            href={`/dashboard/members/${entry.member.id}`}
+                            className="hover:text-cn-cyan"
+                          >
+                            {entry.member.username}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-text-primary">
+                          {entry.explorationLevel}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {formatPower(entry.power, locale, commonT("unknown"))}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           ) : (
             <p className="text-sm text-text-muted">{t("topExplorers.empty")}</p>
           )}
         </DataCard>
         <DataCard
+          className="min-w-0"
           description={t("rosterChanges.description")}
           title={t("rosterChanges.title")}
         >
           {rosterChanges.length ? (
             <>
               {/* Mobile */}
-              <div className="space-y-1.5 sm:hidden">
+              <div className="space-y-2 sm:hidden">
                 {rosterChanges.map((row) => (
                   <div
                     key={row.id}
-                    className="flex items-center justify-between rounded border border-border-dim px-3 py-2 text-xs"
+                    className="rounded-md border border-border-dim bg-base px-3 py-2.5 text-xs"
                   >
-                    <div>
-                      <Link
-                        href={`/dashboard/members/${row.id}`}
-                        className="font-semibold text-text-primary hover:text-cn-cyan"
-                      >
-                        {row.username}
-                      </Link>
-                      <p className="text-text-muted">
-                        {row.prevRank ? `${row.prevRank} → ${row.currRank}` : row.currRank}
-                      </p>
+                    <div className="mb-2 flex min-w-0 items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <Link
+                          href={`/dashboard/members/${row.id}`}
+                          className="block truncate font-semibold text-text-primary hover:text-cn-cyan"
+                        >
+                          {row.username}
+                        </Link>
+                      </div>
+                      <div className="shrink-0">
+                        {changeTypeBadge(row.type, changeLabels)}
+                      </div>
                     </div>
-                    {changeTypeBadge(row.type, changeLabels)}
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+                      <span className="text-text-muted">{t("table.change")}</span>
+                      <span className="min-w-0 text-right text-text-secondary">
+                        {row.prevRank ? `${row.prevRank} → ${row.currRank}` : row.currRank}
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>
