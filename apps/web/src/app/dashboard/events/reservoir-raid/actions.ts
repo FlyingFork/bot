@@ -43,6 +43,15 @@ export type PublicRaidRegistrationResult = RaidActionResult & {
   fieldErrors?: Partial<Record<keyof PublicRaidRegistrationInput, string>>;
 };
 
+export type AllianceRaidRegistrationInput = Omit<
+  PublicRaidRegistrationInput,
+  "username"
+>;
+
+export type AllianceRaidRegistrationResult = RaidActionResult & {
+  fieldErrors?: Partial<Record<keyof AllianceRaidRegistrationInput, string>>;
+};
+
 type StoredRegistration = {
   username: string;
   contactType: "DISCORD" | "TELEGRAM" | null;
@@ -414,6 +423,60 @@ export async function importRaidRegistrations(
 
   refreshPlan(plan.id);
   return { ok: true, message: "loaded", values: { count: rows.length } };
+}
+
+export async function addRaidRegistrationFromAllianceMember(
+  planId: string,
+  memberId: string,
+  input: AllianceRaidRegistrationInput,
+): Promise<AllianceRaidRegistrationResult> {
+  await requireVerifiedSession();
+
+  const [plan, member] = await Promise.all([
+    prisma.reservoirRaidPlan.findUnique({
+      where: { id: planId },
+      select: { id: true },
+    }),
+    prisma.allianceMember.findFirst({
+      where: { id: memberId, active: true },
+      select: { id: true, username: true },
+    }),
+  ]);
+
+  if (!plan) {
+    return { ok: false, message: "planMissing" };
+  }
+
+  if (!member) {
+    return { ok: false, message: "memberMissing" };
+  }
+
+  const existing = await prisma.reservoirRaidParticipant.findFirst({
+    where: {
+      planId,
+      OR: [{ memberId: member.id }, { username: member.username }],
+    },
+    select: { id: true },
+  });
+
+  if (existing) {
+    return { ok: false, message: "memberAlreadyRegistered" };
+  }
+
+  const parsed = parseRegistration({
+    ...input,
+    username: member.username,
+  });
+
+  if (!parsed.ok) {
+    const { username: _username, ...fieldErrors } = parsed.fieldErrors ?? {};
+    return { ok: false, fieldErrors };
+  }
+
+  await saveRegistration(plan.id, parsed.row);
+  refreshPlan(plan.id);
+
+  return { ok: true, message: "registrationAdded" };
 }
 
 export async function promoteRaidParticipant(

@@ -8,6 +8,13 @@ import { ObjectivesPage } from "@/components/objectives/ObjectivesPage";
 import type { ObjectiveMember, SerializedReservoirRaidPlan } from "@/types/objectives";
 import { RaidPlayersPanel, type RaidParticipantRow } from "./RaidPlayersPanel";
 
+export type RaidAllianceMember = {
+  id: string;
+  username: string;
+  avatarColor: string;
+  avatarInitials: string;
+};
+
 export type RaidWorkspacePlan = {
   id: string;
   publicToken: string;
@@ -18,10 +25,12 @@ export type RaidWorkspacePlan = {
 };
 
 export function RaidPlanWorkspace({
+  allianceMembers,
   members,
   participants,
   plan,
 }: {
+  allianceMembers: RaidAllianceMember[];
   members: ObjectiveMember[];
   participants: RaidParticipantRow[];
   plan: RaidWorkspacePlan;
@@ -50,7 +59,11 @@ export function RaidPlanWorkspace({
         </Button>
       </div>
       {view === "players" ? (
-        <RaidPlayersPanel participants={participants} plan={plan} />
+        <RaidPlayersPanel
+          allianceMembers={allianceMembers}
+          participants={participants}
+          plan={plan}
+        />
       ) : (
         <ObjectivesPage members={members} plan={plan.assignmentPlan} />
       )}

@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { Check, Copy, Upload, UserRoundPlus } from "lucide-react";
+import { Check, Copy, Upload, UserRoundPlus, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { useLocale, useTranslations } from "next-intl";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  addRaidRegistrationFromAllianceMember,
+  type AllianceRaidRegistrationInput,
+  type AllianceRaidRegistrationResult,
   importRaidRegistrations,
   promoteRaidParticipant,
   type RaidActionResult,
@@ -17,10 +20,18 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataCard } from "@/components/ui/data-card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ExportMenu } from "@/components/alliance/ExportMenu";
 import { formatImportedAt, formatPower } from "@/lib/alliance-format";
-import type { RaidWorkspacePlan } from "./RaidPlanWorkspace";
+import type { RaidAllianceMember, RaidWorkspacePlan } from "./RaidPlanWorkspace";
 
 export type RaidParticipantRow = {
   id: string;
@@ -55,6 +66,17 @@ const importExample = `{
   ]
 }`;
 
+const emptyAllianceRegistrationInput: AllianceRaidRegistrationInput = {
+  squad1Power: "",
+  squad2Power: "",
+  squad3Power: "",
+  squad4Power: "",
+  squad5Power: "",
+  contactType: "",
+  contact: "",
+  confirmed: false,
+};
+
 function utcTimeValue(startsAt: string) {
   const date = new Date(startsAt);
   return `${String(date.getUTCHours()).padStart(2, "0")}:${String(
@@ -66,10 +88,18 @@ function totalPower(value: string) {
   return BigInt(value);
 }
 
+function FieldError({ message }: { message?: string }) {
+  const t = useTranslations("reservoirRaid.registration.errors");
+
+  return message ? <p className="text-xs text-cn-danger">{t(message)}</p> : null;
+}
+
 export function RaidPlayersPanel({
+  allianceMembers,
   participants,
   plan,
 }: {
+  allianceMembers: RaidAllianceMember[];
   participants: RaidParticipantRow[];
   plan: RaidWorkspacePlan;
 }) {
@@ -83,10 +113,30 @@ export function RaidPlayersPanel({
   const [payload, setPayload] = useState("");
   const [status, setStatus] = useState<RaidActionResult | null>(null);
   const [copied, setCopied] = useState(false);
+  const [selectedAllianceMember, setSelectedAllianceMember] =
+    useState<RaidAllianceMember | null>(null);
+  const [registrationInput, setRegistrationInput] = useState<AllianceRaidRegistrationInput>(
+    emptyAllianceRegistrationInput,
+  );
+  const [registrationResult, setRegistrationResult] =
+    useState<AllianceRaidRegistrationResult | null>(null);
   const [isPending, startTransition] = useTransition();
   const signupPath = `/reservoir-raid/register/${plan.publicToken}`;
   const participantCount = participants.filter((participant) => participant.participant).length;
   const reservistCount = participants.filter((participant) => participant.reservist).length;
+  const registeredMemberIds = useMemo(
+    () =>
+      new Set(
+        participants.flatMap((participant) =>
+          participant.memberId ? [participant.memberId] : [],
+        ),
+      ),
+    [participants],
+  );
+  const registeredUsernames = useMemo(
+    () => new Set(participants.map((participant) => participant.username.toLowerCase())),
+    [participants],
+  );
   const visibleParticipants = useMemo(() => {
     const normalized = search.trim().toLowerCase();
 
@@ -108,10 +158,37 @@ export function RaidPlayersPanel({
             : 1;
       });
   }, [participants, search, sort]);
+  const allianceMatches = useMemo(() => {
+    const normalized = search.trim().toLowerCase();
+
+    if (!normalized) {
+      return [];
+    }
+
+    return allianceMembers.filter(
+      (member) =>
+        member.username.toLowerCase().includes(normalized) &&
+        !registeredMemberIds.has(member.id) &&
+        !registeredUsernames.has(member.username.toLowerCase()),
+    );
+  }, [allianceMembers, registeredMemberIds, registeredUsernames, search]);
 
   function refreshWith(result: RaidActionResult) {
     setStatus(result.message ? result : null);
     router.refresh();
+  }
+
+  function openAllianceRegistration(member: RaidAllianceMember) {
+    setSelectedAllianceMember(member);
+    setRegistrationInput(emptyAllianceRegistrationInput);
+    setRegistrationResult(null);
+  }
+
+  function setRegistrationField<Key extends keyof AllianceRaidRegistrationInput>(
+    field: Key,
+    value: AllianceRaidRegistrationInput[Key],
+  ) {
+    setRegistrationInput((current) => ({ ...current, [field]: value }));
   }
 
   async function copySignupPath() {
@@ -332,6 +409,46 @@ export function RaidPlayersPanel({
               })}
             </span>
           </div>
+          {allianceMatches.length > 0 && (
+            <div className="grid gap-2 rounded-md border border-border-dim bg-base p-3">
+              <div>
+                <h4 className="text-xs font-bold text-text-primary">
+                  {t("allianceMatchesTitle")}
+                </h4>
+                <p className="text-[11px] text-text-muted">
+                  {t("allianceMatchesDescription")}
+                </p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                {allianceMatches.map((member) => (
+                  <div
+                    className="flex min-w-0 items-center justify-between gap-3 rounded-md border border-border-dim bg-surface p-2"
+                    key={member.id}
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span
+                        className={`flex size-8 shrink-0 items-center justify-center rounded-md text-xs font-bold ${member.avatarColor}`}
+                      >
+                        {member.avatarInitials}
+                      </span>
+                      <span className="min-w-0 truncate text-sm font-semibold text-text-primary">
+                        {member.username}
+                      </span>
+                    </div>
+                    <Button
+                      disabled={isPending}
+                      onClick={() => openAllianceRegistration(member)}
+                      size="sm"
+                      variant="secondary"
+                    >
+                      <UserPlus />
+                      {t("addRegistration")}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="overflow-auto rounded-md border border-border-dim">
             <table className="w-full min-w-[48rem] text-left text-xs">
               <thead className="bg-base text-text-muted">
@@ -456,6 +573,147 @@ export function RaidPlayersPanel({
           </div>
         </div>
       </DataCard>
+      <Dialog
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedAllianceMember(null);
+            setRegistrationResult(null);
+          }
+        }}
+        open={selectedAllianceMember !== null}
+      >
+        <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {t("addDialogTitle", {
+                username: selectedAllianceMember?.username ?? "",
+              })}
+            </DialogTitle>
+            <DialogDescription>{t("addDialogDescription")}</DialogDescription>
+          </DialogHeader>
+          <form
+            className="grid gap-4 px-4 py-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+
+              if (!selectedAllianceMember) {
+                return;
+              }
+
+              setRegistrationResult(null);
+              startTransition(async () => {
+                const result = await addRaidRegistrationFromAllianceMember(
+                  plan.id,
+                  selectedAllianceMember.id,
+                  registrationInput,
+                );
+                setRegistrationResult(result);
+
+                if (result.ok) {
+                  refreshWith(result);
+                  setSelectedAllianceMember(null);
+                  setRegistrationInput(emptyAllianceRegistrationInput);
+                }
+              });
+            }}
+          >
+            <label className="grid gap-1.5 text-sm text-text-secondary">
+              {t("username")}
+              <Input readOnly value={selectedAllianceMember?.username ?? ""} />
+            </label>
+            <div className="grid gap-2">
+              {(["squad1Power", "squad2Power", "squad3Power", "squad4Power", "squad5Power"] as const).map(
+                (field, index) => (
+                  <label
+                    className="grid gap-1.5 text-sm text-text-secondary sm:grid-cols-[11rem_minmax(0,1fr)] sm:items-start sm:gap-3"
+                    key={field}
+                  >
+                    <span className="sm:pt-1.5">
+                      {index === 0
+                        ? t("requiredSquadPower", { squad: index + 1 })
+                        : t("optionalSquadPower", { squad: index + 1 })}
+                    </span>
+                    <div className="grid gap-1">
+                      <Input
+                        disabled={isPending}
+                        onChange={(event) =>
+                          setRegistrationField(field, event.target.value)
+                        }
+                        placeholder={index === 0 ? "24.6M" : "875K"}
+                        required={index === 0}
+                        value={registrationInput[field]}
+                      />
+                      <FieldError message={registrationResult?.fieldErrors?.[field]} />
+                    </div>
+                  </label>
+                ),
+              )}
+            </div>
+            <p className="text-xs text-text-muted">{t("powerHint")}</p>
+            <div className="grid gap-3 md:grid-cols-[11rem_minmax(0,1fr)]">
+              <label className="grid gap-1.5 text-sm text-text-secondary">
+                {t("contactType")}
+                <select
+                  className="h-8 rounded-[4px] border border-border-default bg-raised px-3 text-xs text-text-primary outline-none focus:border-border-active disabled:opacity-40"
+                  disabled={isPending}
+                  onChange={(event) =>
+                    setRegistrationField("contactType", event.target.value)
+                  }
+                  value={registrationInput.contactType}
+                >
+                  <option value="">{t("noContact")}</option>
+                  <option value="discord">Discord</option>
+                  <option value="telegram">Telegram</option>
+                </select>
+                <FieldError message={registrationResult?.fieldErrors?.contactType} />
+              </label>
+              <label className="grid gap-1.5 text-sm text-text-secondary">
+                {t("contactHandle")}
+                <Input
+                  disabled={isPending || !registrationInput.contactType}
+                  onChange={(event) =>
+                    setRegistrationField("contact", event.target.value)
+                  }
+                  value={registrationInput.contact}
+                />
+                <FieldError message={registrationResult?.fieldErrors?.contact} />
+              </label>
+            </div>
+            <label className="flex items-start gap-2 text-sm text-text-secondary">
+              <Checkbox
+                checked={registrationInput.confirmed}
+                disabled={isPending}
+                onCheckedChange={(checked) =>
+                  setRegistrationField("confirmed", checked === true)
+                }
+              />
+              <span>
+                {t("confirmed")}
+                <FieldError message={registrationResult?.fieldErrors?.confirmed} />
+              </span>
+            </label>
+            {registrationResult?.message && !registrationResult.ok && (
+              <p className="rounded-md border border-cn-danger/35 bg-cn-danger/10 p-3 text-sm text-cn-danger">
+                {actionT(registrationResult.message, registrationResult.values)}
+              </p>
+            )}
+            <DialogFooter className="px-0 pb-0">
+              <Button
+                disabled={isPending}
+                onClick={() => setSelectedAllianceMember(null)}
+                type="button"
+                variant="outline"
+              >
+                {t("cancel")}
+              </Button>
+              <Button disabled={isPending} type="submit">
+                <UserPlus />
+                {isPending ? t("saving") : t("saveRegistration")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -57,35 +57,45 @@ export default async function ReservoirRaidPlanPage({
     getTranslations("reservoirRaid.plan"),
   ]);
   const { planId } = await params;
-  const plan = await prisma.reservoirRaidPlan.findUnique({
-    where: { id: planId },
-    include: {
-      assignments: {
-        select: {
-          objectiveId: true,
-          participantId: true,
-        },
-      },
-      participants: {
-        orderBy: { username: "asc" },
-        include: {
-          member: {
-            select: {
-              id: true,
-              active: true,
-            },
-          },
-          squadPowers: {
-            orderBy: { squadIndex: "asc" },
-            select: {
-              power: true,
-              squadIndex: true,
-            },
+  const [plan, allianceMembers] = await Promise.all([
+    prisma.reservoirRaidPlan.findUnique({
+      where: { id: planId },
+      include: {
+        assignments: {
+          select: {
+            objectiveId: true,
+            participantId: true,
           },
         },
+        participants: {
+          orderBy: { username: "asc" },
+          include: {
+            member: {
+              select: {
+                id: true,
+                active: true,
+              },
+            },
+            squadPowers: {
+              orderBy: { squadIndex: "asc" },
+              select: {
+                power: true,
+                squadIndex: true,
+              },
+            },
+          },
+        },
       },
-    },
-  });
+    }),
+    prisma.allianceMember.findMany({
+      where: { active: true },
+      orderBy: { username: "asc" },
+      select: {
+        id: true,
+        username: true,
+      },
+    }),
+  ]);
 
   if (!plan) {
     notFound();
@@ -133,6 +143,12 @@ export default async function ReservoirRaidPlanPage({
         }
       />
       <RaidPlanWorkspace
+        allianceMembers={allianceMembers.map((member) => ({
+          id: member.id,
+          username: member.username,
+          avatarColor: usernameColor(member.username),
+          avatarInitials: initials(member.username),
+        }))}
         members={participants.map((participant) => ({
           id: participant.id,
           username: participant.username,
