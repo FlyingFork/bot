@@ -5,10 +5,16 @@ import { admin } from "better-auth/plugins";
 import { nextCookies } from "better-auth/next-js";
 import { prisma } from "@tiles-survive/database";
 
+const trustedOrigins = process.env.BETTER_AUTH_TRUSTED_ORIGINS
+  ?.split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: "postgresql" }),
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL,
+  trustedOrigins,
   emailAndPassword: {
     enabled: true,
   },
