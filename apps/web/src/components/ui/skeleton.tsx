@@ -7,7 +7,7 @@ export function Skeleton({
   return (
     <div
       data-slot="skeleton"
-      className={cn("animate-pulse rounded bg-raised", className)}
+      className={cn("animate-pulse rounded bg-surface-2", className)}
       {...props}
     />
   );

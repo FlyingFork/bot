@@ -7,6 +7,10 @@ datasource db {
   provider = "postgresql"
 }
 
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
 enum Language {
   en
   ru
@@ -26,15 +30,79 @@ enum AllianceRank {
   R1
 }
 
-enum AllianceEventType {
-  ALLIANCE_SIEGE
-  EXPLORATION
+enum PlatformUserStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+enum MemberStatus {
+  ACTIVE
+  TEMP_AWAY
+  LEFT
+}
+
+enum LeaderboardType {
+  SOLO_POWER
+  BATTLE_VANGUARD
+  HEADQUARTERS
+  HERO
+  HERO_POWER
+  BEHEMOTH_RANKINGS
+  EXPLORATION_RANKINGS
+  COLLECTION
+  ALLIANCE_PLAYER_LIST
 }
 
 enum ReservoirRaidContactType {
   DISCORD
   TELEGRAM
 }
+
+enum PendingChangeType {
+  RAID_REGISTRATIONS
+  EVENT_IMPORT
+  LEADERBOARD_SNAPSHOT
+  ALLIANCE_DUEL_DAY
+  RESERVOIR_RAID_RESULTS
+}
+
+enum PendingChangeStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum NotificationType {
+  UPLOAD_SUBMITTED
+  UPLOAD_APPROVED
+  UPLOAD_REJECTED
+  ACCOUNT_VERIFIED
+  EVENT_CREATED
+}
+
+enum EventStatus {
+  ACTIVE
+  ENDED
+}
+
+enum DuelOutcome {
+  WIN
+  LOSS
+  DRAW
+}
+
+enum RegistrationStatus {
+  UNMATCHED
+  MATCHED
+  SELECTED_PARTICIPANT
+  SELECTED_RESERVIST
+  NOT_SELECTED
+}
+
+// ─────────────────────────────────────────────
+// BOT MODELS — DO NOT MODIFY
+// ─────────────────────────────────────────────
 
 model GuildSettings {
   guildId           String   @id @map("guild_id")
@@ -187,29 +255,37 @@ model TranslationApiEvent {
   @@map("translation_api_events")
 }
 
-// ── Auth models (better-auth) ──────────────────────────────────────────────────
-// PostgreSQL default UTF8 encoding supports full Unicode — Cyrillic/Turkish fine.
-// Usernames are stored in their original case (no normalization) to avoid
-// Turkish dotted-i casing issues with JavaScript string methods.
+// ─────────────────────────────────────────────
+// AUTH MODELS — better-auth managed, lowercase names kept
+// EXTENDED: added platformStatus, language, allianceMemberId
+// ─────────────────────────────────────────────
 
 model user {
-  id              String    @id
+  id              String             @id
   name            String
-  email           String    @unique
+  email           String             @unique
   emailVerified   Boolean
   image           String?
   createdAt       DateTime
   updatedAt       DateTime
-  username        String?   @unique
+  username        String?            @unique
   displayUsername String?
   role            String?
   banned          Boolean?
   banReason       String?
   banExpires      DateTime?
+
+  platformStatus   PlatformUserStatus @default(PENDING) @map("platform_status")
+  language         Language           @default(en)
+  allianceMemberId String?            @unique @map("alliance_member_id")
+  allianceMember   AllianceMember?    @relation(fields: [allianceMemberId], references: [id], onDelete: SetNull)
+
   sessions         session[]
   accounts         account[]
+  notifications    Notification[]
   submittedChanges PendingChange[] @relation("PendingChangeSubmitter")
   reviewedChanges  PendingChange[] @relation("PendingChangeReviewer")
+  auditLogs        AuditLog[]
 
   @@map("user")
 }
@@ -230,20 +306,20 @@ model session {
 }
 
 model account {
-  id                   String    @id
-  accountId            String
-  providerId           String
-  userId               String
-  user                 user      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  accessToken          String?
-  refreshToken         String?
-  idToken              String?
-  accessTokenExpiresAt DateTime?
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  user      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
   refreshTokenExpiresAt DateTime?
-  scope                String?
-  password             String?
-  createdAt            DateTime
-  updatedAt            DateTime
+  scope                 String?
+  password              String?
+  createdAt             DateTime
+  updatedAt             DateTime
 
   @@map("account")
 }
@@ -259,77 +335,138 @@ model verification {
   @@map("verification")
 }
 
+// ─────────────────────────────────────────────
+// PLATFORM — CORE
+// ─────────────────────────────────────────────
+
 model AuditLog {
-  id        String   @id @default(cuid())
-  action    String
-  targetId  String
-  actorId   String
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  action     String
+  targetId   String
+  actorId    String
+  actor      user     @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  entityType String?  @map("entity_type")
+  before     Json?
+  after      Json?
+  createdAt  DateTime @default(now()) @map("created_at")
 
+  @@index([actorId])
+  @@index([entityType, targetId])
   @@map("audit_log")
-}
-
-enum PendingChangeStatus {
-  PENDING
-  APPROVED
-  REJECTED
-}
-
-enum PendingChangeType {
-  RAID_REGISTRATIONS
-  EVENT_IMPORT
-}
-
-model PendingChange {
-  id          String              @id @default(cuid())
-  type        PendingChangeType
-  payload     String
-  status      PendingChangeStatus @default(PENDING)
-  submitterId String              @map("submitter_id")
-  submitter   user                @relation("PendingChangeSubmitter", fields: [submitterId], references: [id], onDelete: Cascade)
-  reviewerId  String?             @map("reviewer_id")
-  reviewer    user?               @relation("PendingChangeReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
-  createdAt   DateTime            @default(now()) @map("created_at")
-  updatedAt   DateTime            @updatedAt @map("updated_at")
-
-  @@index([status, createdAt])
-  @@map("pending_changes")
 }
 
 model AllianceSettings {
   id        String   @id @default("primary")
   name      String   @default("")
   tag       String   @default("")
+
+  staleThresholdSoloPower          Int @default(7)  @map("stale_solo_power")
+  staleThresholdBattleVanguard     Int @default(7)  @map("stale_battle_vanguard")
+  staleThresholdHeadquarters       Int @default(7)  @map("stale_headquarters")
+  staleThresholdHero               Int @default(14) @map("stale_hero")
+  staleThresholdHeroPower          Int @default(14) @map("stale_hero_power")
+  staleThresholdBehemoth           Int @default(14) @map("stale_behemoth")
+  staleThresholdExploration        Int @default(14) @map("stale_exploration")
+  staleThresholdCollection         Int @default(14) @map("stale_collection")
+  staleThresholdAlliancePlayerList Int @default(3)  @map("stale_alliance_player_list")
+
+  contributionWeightPowerGrowth       Int @default(30) @map("contrib_weight_power")
+  contributionWeightDuelParticipation Int @default(35) @map("contrib_weight_duel")
+  contributionWeightRaidParticipation Int @default(35) @map("contrib_weight_raid")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("alliance_settings")
 }
 
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String           @map("user_id")
+  user      user             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  message   String
+  read      Boolean          @default(false)
+  dismissedAt DateTime?      @map("dismissed_at")
+  data      Json?
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  @@index([userId, read])
+  @@map("notifications")
+}
+
+model Season {
+  id         String    @id @default(cuid())
+  name       String
+  startDate  DateTime  @map("start_date")
+  endDate    DateTime? @map("end_date")
+  isActive   Boolean   @default(true) @map("is_active")
+  closedAt   DateTime? @map("closed_at")
+  closedById String?   @map("closed_by_id")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  leaderboardSnapshots LeaderboardSnapshot[]
+
+  @@map("seasons")
+}
+
+// ─────────────────────────────────────────────
+// ALLIANCE MEMBERS
+// ─────────────────────────────────────────────
+
 model AllianceMember {
-  id                         String                    @id @default(cuid())
-  username                   String                    @unique
-  active                     Boolean                   @default(true)
-  currentRank                AllianceRank?             @map("current_rank")
-  currentPower               BigInt?                   @map("current_power")
-  currentPowerPlantLevel     Int?                      @map("current_power_plant_level")
-  lastRosterImportedAt       DateTime?                 @map("last_roster_imported_at")
-  rosterSnapshots            AllianceRosterSnapshot[]
-  eventSnapshots             AllianceEventSnapshot[]
-  raidParticipants           ReservoirRaidParticipant[]
-  raidSquadPowers            ReservoirRaidSquadPower[]
-  createdAt                  DateTime                  @default(now()) @map("created_at")
-  updatedAt                  DateTime                  @updatedAt @map("updated_at")
+  id                     String        @id @default(cuid())
+  username               String        @unique
+  active                 Boolean       @default(true)
+  currentRank            AllianceRank? @map("current_rank")
+  currentPower           BigInt?       @map("current_power")
+  currentPowerPlantLevel Int?          @map("current_power_plant_level")
+  lastRosterImportedAt   DateTime?     @map("last_roster_imported_at")
+
+  memberStatus        MemberStatus @default(ACTIVE) @map("member_status")
+  isTempAway          Boolean      @default(false)  @map("is_temp_away")
+  tempAwayAllianceTag String?      @map("temp_away_alliance_tag")
+  joinedAt            DateTime?    @map("joined_at")
+  leftAt              DateTime?    @map("left_at")
+
+  rosterSnapshots  AllianceRosterSnapshot[]
+  eventSnapshots   AllianceEventSnapshot[]
+  raidParticipants ReservoirRaidParticipant[]
+  raidSquadPowers  ReservoirRaidSquadPower[]
+
+  user               user?
+  nameHistory        MemberNameHistory[]
+  leaderboardEntries LeaderboardEntry[]
+  duelScores         AllianceDuelScore[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([active, currentPower])
   @@map("alliance_members")
 }
 
+model MemberNameHistory {
+  id        String         @id @default(cuid())
+  memberId  String         @map("member_id")
+  member    AllianceMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  name      String
+  changedAt DateTime       @default(now()) @map("changed_at")
+
+  @@index([memberId])
+  @@map("member_name_history")
+}
+
+// ─────────────────────────────────────────────
+// LEADERBOARD SNAPSHOTS
+// ─────────────────────────────────────────────
+
 model AllianceRosterImport {
-  id          String                   @id @default(cuid())
-  actorId     String                   @map("actor_id")
-  snapshots   AllianceRosterSnapshot[]
-  createdAt   DateTime                 @default(now()) @map("created_at")
+  id        String                   @id @default(cuid())
+  actorId   String                   @map("actor_id")
+  snapshots AllianceRosterSnapshot[]
+  createdAt DateTime                 @default(now()) @map("created_at")
 
   @@index([createdAt])
   @@map("alliance_roster_imports")
@@ -351,11 +488,11 @@ model AllianceRosterSnapshot {
 }
 
 model AllianceEventImport {
-  id          String                  @id @default(cuid())
-  actorId     String                  @map("actor_id")
-  eventType   AllianceEventType       @map("event_type")
-  snapshots   AllianceEventSnapshot[]
-  createdAt   DateTime                @default(now()) @map("created_at")
+  id        String                  @id @default(cuid())
+  actorId   String                  @map("actor_id")
+  eventType LeaderboardType         @map("event_type")
+  snapshots AllianceEventSnapshot[]
+  createdAt DateTime                @default(now()) @map("created_at")
 
   @@index([eventType, createdAt])
   @@map("alliance_event_imports")
@@ -365,7 +502,7 @@ model AllianceEventSnapshot {
   id               String              @id @default(cuid())
   importId         String              @map("import_id")
   memberId         String              @map("member_id")
-  eventType        AllianceEventType   @map("event_type")
+  eventType        LeaderboardType     @map("event_type")
   power            BigInt
   explorationLevel Int?                @map("exploration_level")
   importedAt       DateTime            @default(now()) @map("imported_at")
@@ -377,16 +514,133 @@ model AllianceEventSnapshot {
   @@map("alliance_event_snapshots")
 }
 
+model LeaderboardSnapshot {
+  id              String          @id @default(cuid())
+  type            LeaderboardType
+  capturedAt      DateTime        @default(now()) @map("captured_at")
+  changeRequestId String?         @map("change_request_id")
+  seasonId        String?         @map("season_id")
+  season          Season?         @relation(fields: [seasonId], references: [id])
+  entries         LeaderboardEntry[]
+
+  @@index([type, capturedAt])
+  @@map("leaderboard_snapshots")
+}
+
+model LeaderboardEntry {
+  id         String              @id @default(cuid())
+  snapshotId String              @map("snapshot_id")
+  snapshot   LeaderboardSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  memberId   String?             @map("member_id")
+  member     AllianceMember?     @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  rank       Int?
+  playerName String              @map("player_name")
+  data       Json
+
+  @@index([snapshotId])
+  @@index([memberId])
+  @@map("leaderboard_entries")
+}
+
+// ─────────────────────────────────────────────
+// UPLOAD REQUESTS
+// ─────────────────────────────────────────────
+
+model PendingChange {
+  id          String              @id @default(cuid())
+  type        PendingChangeType
+  payload     String
+  status      PendingChangeStatus @default(PENDING)
+  submitterId String              @map("submitter_id")
+  submitter   user                @relation("PendingChangeSubmitter", fields: [submitterId], references: [id], onDelete: Cascade)
+  reviewerId  String?             @map("reviewer_id")
+  reviewer    user?               @relation("PendingChangeReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  reviewedAt  DateTime?           @map("reviewed_at")
+  rejectionNote String?           @map("rejection_note")
+
+  leaderboardType   LeaderboardType? @map("leaderboard_type")
+  eventInstanceId   String?          @map("event_instance_id")
+  eventInstanceType String?          @map("event_instance_type")
+  eventDay          Int?             @map("event_day")
+  diffData          Json?            @map("diff_data")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([status, createdAt])
+  @@map("pending_changes")
+}
+
+// ─────────────────────────────────────────────
+// ALLIANCE DUEL
+// ─────────────────────────────────────────────
+
+model AllianceDuelInstance {
+  id           String       @id @default(cuid())
+  startDate    DateTime     @map("start_date")
+  endDate      DateTime     @map("end_date")
+  status       EventStatus  @default(ACTIVE)
+  opponentTag  String?      @map("opponent_tag")
+  opponentName String?      @map("opponent_name")
+  outcome      DuelOutcome?
+  createdById  String       @map("created_by_id")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  days         AllianceDuelDay[]
+
+  @@map("alliance_duel_instances")
+}
+
+model AllianceDuelDay {
+  id              String               @id @default(cuid())
+  instanceId      String               @map("instance_id")
+  instance        AllianceDuelInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  dayNumber       Int                  @map("day_number")
+  date            DateTime
+  pointValue      Int                  @map("point_value")
+  hasData         Boolean              @default(false) @map("has_data")
+  dayOutcome      DuelOutcome?         @map("day_outcome")
+  changeRequestId String?              @map("change_request_id")
+  scores          AllianceDuelScore[]
+
+  @@unique([instanceId, dayNumber])
+  @@map("alliance_duel_days")
+}
+
+model AllianceDuelScore {
+  id       String          @id @default(cuid())
+  dayId    String          @map("day_id")
+  day      AllianceDuelDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  memberId String          @map("member_id")
+  member   AllianceMember  @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  points   Int
+
+  @@unique([dayId, memberId])
+  @@index([memberId])
+  @@map("alliance_duel_scores")
+}
+
+// ─────────────────────────────────────────────
+// RESERVOIR RAID
+// ─────────────────────────────────────────────
+
 model ReservoirRaidPlan {
   id               String                     @id @default(cuid())
   raidDate         DateTime                   @unique @map("raid_date") @db.Date
   startsAt         DateTime                   @map("starts_at")
   publicToken      String                     @unique @map("public_token")
   registrationOpen Boolean                    @default(true) @map("registration_open")
-  participants     ReservoirRaidParticipant[]
-  assignments      ReservoirRaidAssignment[]
-  createdAt        DateTime                   @default(now()) @map("created_at")
-  updatedAt        DateTime                   @updatedAt @map("updated_at")
+
+  status      EventStatus @default(ACTIVE)
+  createdById String?     @map("created_by_id")
+
+  participants ReservoirRaidParticipant[]
+  assignments  ReservoirRaidAssignment[]
+  objectives   ReservoirRaidObjective[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("reservoir_raid_plan")
 }
@@ -405,8 +659,12 @@ model ReservoirRaidParticipant {
   member      AllianceMember?           @relation(fields: [memberId], references: [id], onDelete: SetNull)
   squadPowers ReservoirRaidSquadPower[]
   assignments ReservoirRaidAssignment[]
-  createdAt   DateTime                  @default(now()) @map("created_at")
-  updatedAt   DateTime                  @updatedAt @map("updated_at")
+
+  registrationStatus RegistrationStatus @default(UNMATCHED) @map("registration_status")
+  waterCollected     Int?               @map("water_collected")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@unique([planId, username])
   @@index([planId, memberId])
@@ -414,29 +672,46 @@ model ReservoirRaidParticipant {
 }
 
 model ReservoirRaidSquadPower {
-  id            String                    @id @default(cuid())
-  participantId String                    @map("participant_id")
-  memberId      String?                   @map("member_id")
-  squadIndex    Int                       @map("squad_index")
+  id            String                   @id @default(cuid())
+  participantId String                   @map("participant_id")
+  memberId      String?                  @map("member_id")
+  squadIndex    Int                      @map("squad_index")
   power         BigInt
   participant   ReservoirRaidParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
-  member        AllianceMember?           @relation(fields: [memberId], references: [id], onDelete: SetNull)
-  createdAt     DateTime                  @default(now()) @map("created_at")
+  member        AllianceMember?          @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  createdAt     DateTime                 @default(now()) @map("created_at")
 
   @@unique([participantId, squadIndex])
   @@index([memberId, createdAt])
   @@map("reservoir_raid_squad_powers")
 }
 
-model ReservoirRaidAssignment {
-  id            String                    @id @default(cuid())
-  planId        String                    @map("plan_id")
-  objectiveId   String                    @map("objective_id")
-  participantId String                    @map("participant_id")
-  plan          ReservoirRaidPlan         @relation(fields: [planId], references: [id], onDelete: Cascade)
-  participant   ReservoirRaidParticipant  @relation(fields: [participantId], references: [id], onDelete: Cascade)
+model ReservoirRaidObjective {
+  id           String            @id @default(cuid())
+  planId       String            @map("plan_id")
+  plan         ReservoirRaidPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  key          String
+  tier         Int
+  waterRate    Int               @map("water_rate")
+  isAssignable Boolean           @default(true) @map("is_assignable")
+  mapX         Float             @map("map_x")
+  mapY         Float             @map("map_y")
 
-  @@unique([planId, objectiveId, participantId])
+  assignments ReservoirRaidAssignment[]
+
+  @@index([planId])
+  @@map("reservoir_raid_objectives")
+}
+
+model ReservoirRaidAssignment {
+  id            String                   @id @default(cuid())
+  planId        String                   @map("plan_id")
+  objectiveId   String                   @map("objective_id")
+  participantId String                   @unique @map("participant_id")
+  plan          ReservoirRaidPlan        @relation(fields: [planId], references: [id], onDelete: Cascade)
+  objective     ReservoirRaidObjective   @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+  participant   ReservoirRaidParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
   @@index([planId, objectiveId])
   @@map("reservoir_raid_assignments")
 }

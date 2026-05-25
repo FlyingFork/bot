@@ -5,18 +5,18 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const badgeVariants = cva(
-  "group/badge inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-[3px] border px-2 py-0.5 text-[9px] font-bold tracking-widest uppercase whitespace-nowrap transition-colors [&>svg]:pointer-events-none [&>svg]:size-3!",
+  "group/badge inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-sm border px-2.5 py-0.5 text-[11px] font-medium tracking-[0.04em] whitespace-nowrap transition-colors [&>svg]:pointer-events-none [&>svg]:size-3!",
   {
     variants: {
       variant: {
-        default: "bg-cn-cyan-glow text-cn-cyan border-border-active",
-        secondary: "bg-raised text-text-secondary border-border-subtle",
-        destructive: "bg-cn-danger/10 text-cn-danger border-cn-danger/25",
-        outline: "border-border-default text-text-secondary",
-        ghost: "hover:bg-raised hover:text-text-secondary",
-        link: "text-cn-cyan underline-offset-4 hover:underline",
-        success: "bg-cn-success/10 text-cn-success border-cn-success/25",
-        warning: "bg-cn-warning/10 text-cn-warning border-cn-warning/25",
+        default: "bg-gold-bg text-gold border-gold-border",
+        secondary: "bg-surface-2 text-muted border-border-line",
+        destructive: "bg-danger-bg text-danger border-danger/25",
+        outline: "border-border-line text-muted",
+        ghost: "hover:bg-surface-2 hover:text-muted",
+        link: "text-gold underline-offset-4 hover:underline",
+        success: "bg-success-bg text-success border-success/25",
+        warning: "bg-gold-bg text-gold border-gold-border",
       },
     },
     defaultVariants: {

@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
-import { Exo_2, Geist_Mono } from "next/font/google";
+import { Inter, Geist_Mono } from "next/font/google";
 import { getLocale, getMessages } from "next-intl/server";
 import { NextIntlClientProvider } from "next-intl";
+import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
-const exo2 = Exo_2({
-  variable: "--font-exo2",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin", "latin-ext", "cyrillic"],
   weight: ["300", "400", "500", "600", "700", "800"],
   display: "swap",
@@ -24,22 +25,23 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   const locale = await getLocale();
   const messages = await getMessages();
 
   return (
     <html
       lang={locale}
-      className={`${exo2.variable} ${geistMono.variable} dark h-full antialiased`}
+      className={`${inter.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full bg-void text-text-primary">
-        <NextIntlClientProvider messages={messages}>
-          {children}
-          <Toaster richColors />
-        </NextIntlClientProvider>
+      <body className="min-h-full">
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+          <NextIntlClientProvider messages={messages}>
+            {children}
+            <Toaster richColors />
+          </NextIntlClientProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

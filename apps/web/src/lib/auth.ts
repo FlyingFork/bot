@@ -7,7 +7,7 @@ import { prisma } from "@tiles-survive/database";
 
 const trustedOrigins = process.env.BETTER_AUTH_TRUSTED_ORIGINS
   ?.split(",")
-  .map((origin) => origin.trim())
+  .map((o) => o.trim())
   .filter(Boolean);
 
 export const auth = betterAuth({
@@ -15,26 +15,35 @@ export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL,
   trustedOrigins,
-  emailAndPassword: {
-    enabled: true,
-  },
+  emailAndPassword: { enabled: true },
   plugins: [
-    username({
-      // Store usernames in original case to avoid Turkish dotted-i issues
-      // with JS toLocaleLowerCase(). Comparisons are done case-sensitively.
-      usernameNormalization: false,
-    }),
+    username({ usernameNormalization: false }),
     admin(),
     nextCookies(),
   ],
+  user: {
+    additionalFields: {
+      platformStatus: { type: "string", defaultValue: "PENDING" },
+      language: { type: "string", defaultValue: "en" },
+      allianceMemberId: { type: "string", required: false },
+    },
+  },
   databaseHooks: {
     user: {
       create: {
         async before(user) {
           const count = await prisma.user.count();
           if (count === 0) {
-            return { data: { ...user, role: "admin", emailVerified: true } };
+            return {
+              data: {
+                ...user,
+                role: "admin",
+                platformStatus: "ACTIVE",
+                emailVerified: true,
+              },
+            };
           }
+          return { data: { ...user, platformStatus: "PENDING", role: "r1" } };
         },
       },
     },

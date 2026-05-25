@@ -5,14 +5,22 @@ import { cn } from "@/lib/utils"
 function Card({
   className,
   size = "default",
+  accent = false,
+  elevated = false,
   ...props
-}: React.ComponentProps<"div"> & { size?: "default" | "sm" }) {
+}: React.ComponentProps<"div"> & {
+  size?: "default" | "sm";
+  accent?: boolean;
+  elevated?: boolean;
+}) {
   return (
     <div
       data-slot="card"
       data-size={size}
       className={cn(
-        "group/card flex flex-col gap-4 overflow-hidden rounded-lg bg-surface border border-border-subtle py-4 text-sm text-text-primary has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0",
+        "group/card flex flex-col gap-4 overflow-hidden rounded-xl bg-surface border border-border-line py-4 text-sm text-text has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0",
+        accent && "border-l-[3px] border-l-gold",
+        elevated && "bg-surface-2",
         className
       )}
       {...props}
@@ -38,7 +46,7 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-title"
       className={cn(
-        "font-heading text-sm leading-snug font-bold text-text-primary tracking-tight group-data-[size=sm]/card:text-xs",
+        "font-heading text-[16px] leading-snug font-medium text-text tracking-tight group-data-[size=sm]/card:text-sm",
         className
       )}
       {...props}
@@ -50,7 +58,7 @@ function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-description"
-      className={cn("text-[11px] text-text-muted", className)}
+      className={cn("text-[13px] text-muted", className)}
       {...props}
     />
   )
@@ -84,7 +92,7 @@ function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-footer"
       className={cn(
-        "flex items-center rounded-b-lg border-t border-border-dim bg-raised/30 p-4 group-data-[size=sm]/card:p-3",
+        "flex items-center rounded-b-xl border-t border-border-line bg-surface-2/30 p-4 group-data-[size=sm]/card:p-3",
         className
       )}
       {...props}

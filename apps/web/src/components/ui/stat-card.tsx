@@ -18,32 +18,30 @@ export function StatCard({
   delta,
   deltaType = "neutral",
   sparkData,
-  sparkColor = "#00D2FF",
+  sparkColor = "#e8a020",
   className,
 }: StatCardProps) {
   const deltaColors = {
-    positive: "text-cn-success",
-    negative: "text-cn-danger",
-    neutral: "text-text-muted",
+    positive: "text-success",
+    negative: "text-danger",
+    neutral: "text-muted",
   };
 
   return (
     <div
       className={cn(
-        "bg-surface border border-border-dim rounded-md p-3 flex flex-col gap-1",
+        "bg-surface-2 border border-border-line rounded-[10px] p-3.5 flex flex-col gap-1 lg:py-[20px] lg:px-[24px] lg:min-h-[96px] lg:gap-2",
         className,
       )}
     >
-      <span className="text-[10px] font-bold tracking-widest uppercase text-text-muted">
+      <span className="text-[11px] font-normal tracking-[0.07em] uppercase text-muted">
         {label}
       </span>
-      <span className="text-2xl font-bold text-text-primary leading-none">
+      <span className="text-2xl font-medium text-gold leading-none tabular-nums">
         {value}
       </span>
       {delta && (
-        <span
-          className={cn("text-[10px] font-semibold", deltaColors[deltaType])}
-        >
+        <span className={cn("text-[11px]", deltaColors[deltaType])}>
           {delta}
         </span>
       )}

@@ -27,11 +27,11 @@ export function NavLink({
     <Link
       href={href}
       className={cn(
-        "flex items-center gap-2 py-2 text-sm font-medium transition-colors relative",
-        subItem ? "pl-9 pr-3 text-xs" : "px-3.5",
+        "flex items-center gap-2 py-[7px] text-[13px] font-medium transition-colors relative [&_svg]:transition-colors",
+        subItem ? "pl-9 pr-3 text-xs" : "px-2.5",
         isActive
-          ? "text-cn-cyan bg-cn-cyan-glow before:absolute before:left-0 before:top-0 before:bottom-0 before:w-0.5 before:bg-cn-cyan before:rounded-r-sm"
-          : "text-text-secondary hover:bg-raised/50 hover:text-text-primary",
+          ? "text-gold bg-gold-bg before:absolute before:left-0 before:top-0 before:bottom-0 before:w-0.5 before:bg-gold before:rounded-r-sm [&_svg]:text-gold"
+          : "text-muted hover:bg-surface-2/60 hover:text-text [&_svg]:text-muted hover:[&_svg]:text-text",
         className,
       )}
     >

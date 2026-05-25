@@ -1,55 +1,41 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { auth } from "@/lib/auth";
+import { NextRequest, NextResponse } from "next/server";
 
-export async function proxy(request: NextRequest) {
+const PUBLIC_PATHS = ["/sign-in", "/sign-up", "/pending", "/suspended", "/"];
+const PUBLIC_RAID_RE = /^\/events\/reservoir-raid\/[^/]+\/register/;
+const AUTH_API_RE = /^\/api\/auth\//;
+
+function isPublic(pathname: string): boolean {
+  if (AUTH_API_RE.test(pathname)) return true;
+  if (PUBLIC_RAID_RE.test(pathname)) return true;
+  return PUBLIC_PATHS.some((p) =>
+    p === "/" ? pathname === "/" : pathname === p || pathname.startsWith(p + "/"),
+  );
+}
+
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Fetch session via better-auth
-  let session: Awaited<ReturnType<typeof auth.api.getSession>> = null;
-  try {
-    session = await auth.api.getSession({ headers: request.headers });
-  } catch {
-    // If session fetch fails, treat as unauthenticated
-  }
-
-  const isAuthed = !!session;
-  const isVerified = isAuthed && session?.user.emailVerified === true;
-  const isAdmin = isVerified && session?.user.role === "admin";
-
-  // Auth pages: sign-in and sign-up
-  if (pathname === "/sign-in" || pathname === "/sign-up") {
-    if (isAuthed && !isVerified) return NextResponse.redirect(new URL("/sign-up/pending", request.url));
-    if (isVerified) return NextResponse.redirect(new URL("/dashboard", request.url));
+  if (
+    isPublic(pathname) ||
+    pathname.startsWith("/_next/") ||
+    pathname.includes(".")
+  ) {
     return NextResponse.next();
   }
 
-  // Pending page: verified users redirect to dashboard
-  if (pathname === "/sign-up/pending") {
-    if (isVerified) return NextResponse.redirect(new URL("/dashboard", request.url));
-    return NextResponse.next();
-  }
+  const sessionCookie =
+    request.cookies.get("better-auth.session_token") ??
+    request.cookies.get("__Secure-better-auth.session_token");
 
-  // Dashboard: requires verified session
-  if (pathname.startsWith("/dashboard")) {
-    if (!isAuthed) return NextResponse.redirect(new URL("/sign-in", request.url));
-    if (!isVerified) return NextResponse.redirect(new URL("/sign-up/pending", request.url));
-    return NextResponse.next();
-  }
-
-  // Admin: requires admin role
-  if (pathname.startsWith("/admin")) {
-    if (!isAuthed) return NextResponse.redirect(new URL("/sign-in", request.url));
-    if (!isVerified) return NextResponse.redirect(new URL("/sign-up/pending", request.url));
-    if (!isAdmin) return NextResponse.rewrite(new URL("/forbidden", request.url));
-    return NextResponse.next();
+  if (!sessionCookie) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/sign-in";
+    return NextResponse.redirect(url);
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: [
-    "/((?!api/auth|api/bot|_next/static|_next/image|favicon\\.ico).*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

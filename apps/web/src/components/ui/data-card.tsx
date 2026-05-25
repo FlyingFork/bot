@@ -26,10 +26,10 @@ export function DataCard({
         <div className="flex items-center justify-between px-4 py-3 border-b border-border-dim">
           <div>
             {title && (
-              <h3 className="text-sm font-bold text-text-primary">{title}</h3>
+              <h3 className="text-[16px] font-medium text-text">{title}</h3>
             )}
             {description && (
-              <p className="text-[11px] text-text-muted mt-0.5">
+              <p className="text-[13px] text-muted mt-0.5">
                 {description}
               </p>
             )}
