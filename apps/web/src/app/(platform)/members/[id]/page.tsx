@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { prisma } from "@tiles-survive/database";
 import { getCurrentUser } from "@/lib/server-auth";
@@ -14,7 +13,7 @@ import { MemberProfileActions } from "@/components/phase2/MemberProfileActions";
 import type { MemberSummary } from "@/components/phase2/types";
 import { EmptyState, formatDate, roleLabel, statusBadge } from "@/components/phase2/Phase2Utils";
 import { getContributionScores, latestPowerFromEntryData } from "@/lib/phase4";
-import { numberFromEntryData } from "@/lib/phase4-shared";
+import { LEADERBOARD_VALUE_FIELDS, isPhase4LeaderboardType, numberFromEntryData } from "@/lib/phase4-shared";
 import {
   MemberProfilePhase4,
   type DuelHistoryRow,
@@ -23,6 +22,7 @@ import {
   type RaidHistoryRow,
   type RankPoint,
 } from "@/components/phase4/MemberProfilePhase4";
+import { MemberComparePicker, type CompareMemberOption } from "@/components/phase4/MemberComparePicker";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -31,7 +31,6 @@ type Props = {
 
 export default async function MemberProfilePage({ params, searchParams }: Props) {
   const t = await getTranslations("phase2.members");
-  const phase4T = await getTranslations("phase4.memberProfile");
   const profileT = await getTranslations("phase2.profile");
   const common = await getTranslations("phase2.common");
   const statusT = await getTranslations("phase2.status");
@@ -92,7 +91,7 @@ export default async function MemberProfilePage({ params, searchParams }: Props)
       ? prisma.allianceMember.findMany({
           where: { id: { not: id }, memberStatus: { notIn: ["LEFT", "TRANSFERRED"] } },
           orderBy: { username: "asc" },
-          select: { id: true, username: true },
+          select: { id: true, username: true, currentPower: true },
         })
       : Promise.resolve([]),
   ]);
@@ -110,10 +109,8 @@ export default async function MemberProfilePage({ params, searchParams }: Props)
     .filter((entry) => entry.memberId && entry.rank !== null)
     .map((entry) => {
       const type = entry.snapshot.type;
-      const figure = type === "SOLO_POWER"
-        ? (numberFromEntryData(entry.data, ["value"]) ?? undefined)
-        : type === "BATTLE_VANGUARD"
-        ? (numberFromEntryData(entry.data, ["kills"]) ?? undefined)
+      const figure = isPhase4LeaderboardType(type)
+        ? (numberFromEntryData(entry.data, LEADERBOARD_VALUE_FIELDS[type]) ?? undefined)
         : undefined;
       return {
         date: entry.snapshot.capturedAt.toISOString(),
@@ -172,6 +169,7 @@ export default async function MemberProfilePage({ params, searchParams }: Props)
       },
     };
   });
+  const comparePickerOptions = jsonSafe(compareOptions) as CompareMemberOption[];
 
   return (
     <div className="space-y-6">
@@ -260,21 +258,12 @@ export default async function MemberProfilePage({ params, searchParams }: Props)
       )}
 
       {canViewFull && (
-        <section className="rounded-md border border-border-subtle bg-surface p-4 space-y-3">
-          <h2 className="text-sm font-bold text-text-primary">{phase4T("compareWith")}</h2>
-          <div className="flex flex-wrap gap-2">
-            {compareOptions.slice(0, 40).map((option) => (
-              <Link
-                key={option.id}
-                href={`/members/${id}?compare=${option.id}`}
-                className={compare === option.id ? "rounded-[4px] bg-cn-cyan px-2 py-1 text-xs font-semibold text-void" : "rounded-[4px] border border-border-default bg-raised px-2 py-1 text-xs font-semibold text-text-secondary hover:text-text-primary"}
-              >
-                {option.username}
-              </Link>
-            ))}
-            {compare && <Link href={`/members/${id}`} className="rounded-[4px] border border-border-default bg-raised px-2 py-1 text-xs font-semibold text-text-secondary hover:text-text-primary">{phase4T("clearCompare")}</Link>}
-          </div>
-        </section>
+        <MemberComparePicker
+          currentMemberId={id}
+          currentPower={member.currentPower?.toString() ?? null}
+          selectedCompareId={compare}
+          options={comparePickerOptions}
+        />
       )}
 
       <MemberProfilePhase4

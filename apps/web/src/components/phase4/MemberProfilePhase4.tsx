@@ -57,10 +57,10 @@ function chartRows<T extends { date: string; memberId: string; value?: number; r
   members: ProfileMember[],
   key: "value" | "rank" | "figure",
 ) {
-  const byDate = new Map<string, Record<string, string | number>>();
+  const byDate = new Map<string, Record<string, string | number | null>>();
   for (const point of points) {
     const row = byDate.get(point.date) ?? { date: dateLabel(point.date) };
-    row[point.memberId] = point[key] ?? 0;
+    row[point.memberId] = point[key] ?? null;
     byDate.set(point.date, row);
   }
   return Array.from(byDate.entries())
@@ -74,6 +74,7 @@ function chartRows<T extends { date: string; memberId: string; value?: number; r
 }
 
 const COLORS = ["#22d3ee", "#f59e0b"];
+const POWER_FIGURE_TYPES = new Set<Phase4LeaderboardType>(["SOLO_POWER", "HERO", "HERO_POWER", "BEHEMOTH_RANKINGS", "COLLECTION"]);
 
 export function MemberProfilePhase4({
   members,
@@ -150,11 +151,12 @@ export function MemberProfilePhase4({
 
       <section className="grid gap-4 xl:grid-cols-2">
         {rankTypes.map((type) => {
-          const isFigureType = type === "SOLO_POWER" || type === "BATTLE_VANGUARD";
           const filtered = rankPoints.filter((point) => point.type === type);
-          const rows = isFigureType
+          const hasFigure = filtered.some((point) => point.figure !== undefined);
+          const rows = hasFigure
             ? chartRows(filtered, members, "figure")
             : chartRows(filtered, members, "rank");
+          const isPowerFigureType = POWER_FIGURE_TYPES.has(type);
           return (
             <DataCard
               key={type}
@@ -166,14 +168,14 @@ export function MemberProfilePhase4({
                   <LineChart data={rows}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.2)" />
                     <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                    {isFigureType ? (
-                      type === "SOLO_POWER"
+                    {hasFigure ? (
+                      isPowerFigureType
                         ? <YAxis tickFormatter={(v) => formatPower(Number(v))} tick={{ fontSize: 11 }} />
                         : <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                     ) : (
                       <YAxis reversed tick={{ fontSize: 11 }} allowDecimals={false} />
                     )}
-                    <Tooltip formatter={type === "SOLO_POWER" ? (v) => formatPowerFull(Number(v)) : undefined} />
+                    <Tooltip formatter={hasFigure && isPowerFigureType ? (v) => formatPowerFull(Number(v)) : undefined} />
                     {members.map((member, index) => (
                       <Line key={member.id} type="monotone" dataKey={member.id} name={member.username} stroke={COLORS[index] ?? "#a78bfa"} strokeWidth={2} dot={false} connectNulls />
                     ))}
@@ -194,7 +196,42 @@ export function MemberProfilePhase4({
         title={t("duelHistory")}
         headerAction={members[0] ? <ExportButton baseUrl={`/api/export?type=member-duel-history&memberId=${members[0].id}`} /> : null}
       >
-        <div className="overflow-x-auto">
+        <div className="space-y-2 md:hidden">
+          {duelRows.map((row) => (
+            <div key={`${row.memberId}-${row.instanceId}`} className="rounded-md border border-border-dim bg-raised p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-text-primary">
+                    {members.find((member) => member.id === row.memberId)?.username}
+                  </p>
+                  <p className="mt-0.5 text-xs text-text-muted">{dateLabel(row.week)}</p>
+                </div>
+                <span className="shrink-0 text-sm font-semibold text-cn-cyan">{row.total}</span>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {row.days.map((points, index) => (
+                  <div key={index} className="rounded-[4px] border border-border-line bg-surface px-2 py-1.5">
+                    <p className="text-[10px] font-bold uppercase text-text-muted">{t("day", { day: index + 1 })}</p>
+                    <p className="mt-0.5 text-xs font-medium text-text-primary">{points ?? common("none")}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 grid gap-2 text-xs text-text-secondary">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-text-muted">{t("opponent")}</span>
+                  <span className="min-w-0 truncate text-right font-medium text-text-primary">{row.opponent || common("unknown")}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-text-muted">{t("outcome")}</span>
+                  <span className="font-medium text-text-primary">{row.outcome ?? common("none")}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+          {duelRows.length === 0 && <p className="py-8 text-center text-sm text-text-muted">{common("noDataYet")}</p>}
+        </div>
+
+        <div className="hidden md:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -227,27 +264,50 @@ export function MemberProfilePhase4({
         title={t("raidHistory")}
         headerAction={members[0] ? <ExportButton baseUrl={`/api/export?type=member-raid-history&memberId=${members[0].id}`} /> : null}
       >
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t("member")}</TableHead>
-              <TableHead>{t("date")}</TableHead>
-              <TableHead>{t("status")}</TableHead>
-              <TableHead>{t("water")}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {raidRows.map((row) => (
-              <TableRow key={row.id}>
-                <TableCell>{members.find((member) => member.id === row.memberId)?.username}</TableCell>
-                <TableCell>{dateLabel(row.date)}</TableCell>
-                <TableCell>{t(`raidStatus.${row.status}`)}</TableCell>
-                <TableCell>{row.waterCollected ?? common("none")}</TableCell>
+        <div className="space-y-2 md:hidden">
+          {raidRows.map((row) => (
+            <div key={row.id} className="rounded-md border border-border-dim bg-raised p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-text-primary">
+                    {members.find((member) => member.id === row.memberId)?.username}
+                  </p>
+                  <p className="mt-0.5 text-xs text-text-muted">{dateLabel(row.date)}</p>
+                </div>
+                <span className="shrink-0 text-sm font-semibold text-cn-cyan">{row.waterCollected ?? common("none")}</span>
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-3 text-xs">
+                <span className="text-text-muted">{t("status")}</span>
+                <span className="font-medium text-text-primary">{t(`raidStatus.${row.status}`)}</span>
+              </div>
+            </div>
+          ))}
+          {raidRows.length === 0 && <p className="py-8 text-center text-sm text-text-muted">{common("noDataYet")}</p>}
+        </div>
+
+        <div className="hidden md:block">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("member")}</TableHead>
+                <TableHead>{t("date")}</TableHead>
+                <TableHead>{t("status")}</TableHead>
+                <TableHead>{t("water")}</TableHead>
               </TableRow>
-            ))}
-            {raidRows.length === 0 && <TableRow><TableCell colSpan={4} className="py-8 text-center text-text-muted">{common("noDataYet")}</TableCell></TableRow>}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {raidRows.map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell>{members.find((member) => member.id === row.memberId)?.username}</TableCell>
+                  <TableCell>{dateLabel(row.date)}</TableCell>
+                  <TableCell>{t(`raidStatus.${row.status}`)}</TableCell>
+                  <TableCell>{row.waterCollected ?? common("none")}</TableCell>
+                </TableRow>
+              ))}
+              {raidRows.length === 0 && <TableRow><TableCell colSpan={4} className="py-8 text-center text-text-muted">{common("noDataYet")}</TableCell></TableRow>}
+            </TableBody>
+          </Table>
+        </div>
       </DataCard>
     </div>
   );

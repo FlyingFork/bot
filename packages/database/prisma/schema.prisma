@@ -283,6 +283,7 @@ model user {
 
   platformStatus   PlatformUserStatus @default(PENDING) @map("platform_status")
   language         Language           @default(en)
+  lastSeenAt       DateTime?          @map("last_seen_at")
   allianceMemberId String?            @unique @map("alliance_member_id")
   allianceMember   AllianceMember?    @relation(fields: [allianceMemberId], references: [id], onDelete: SetNull)
 

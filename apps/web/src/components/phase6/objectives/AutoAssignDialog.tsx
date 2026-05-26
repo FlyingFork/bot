@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import { X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import type { RaidObjectiveRow, RaidParticipantRow } from "@/components/phase6/ReservoirRaidDetail";
 import { TIER_COLORS, getObjectiveName, type ObjectiveLang } from "@/lib/raid-objectives";
@@ -29,6 +30,8 @@ function computeDefaultCounts(objectives: RaidObjectiveRow[], totalPlayers: numb
 }
 
 export function AutoAssignDialog({ objectives, participants, planLang, onApply }: Props) {
+  const t = useTranslations("phase6.reservoirRaid.objectives");
+  const common = useTranslations("phase6.common");
   const [open, setOpen] = useState(false);
   const [applying, setApplying] = useState(false);
 
@@ -76,7 +79,7 @@ export function AutoAssignDialog({ objectives, participants, planLang, onApply }
   return (
     <>
       <Button variant="outline" size="sm" onClick={handleOpen}>
-        Auto-assign
+        {t("autoAssign")}
       </Button>
 
       <Dialog.Root open={open} onOpenChange={setOpen}>
@@ -85,9 +88,9 @@ export function AutoAssignDialog({ objectives, participants, planLang, onApply }
           <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-full max-w-md rounded-lg border border-border-subtle bg-surface shadow-card p-4 space-y-4 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95">
             <div className="flex items-start justify-between">
               <div>
-                <Dialog.Title className="text-sm font-semibold text-text-primary">Auto-assign configuration</Dialog.Title>
+                <Dialog.Title className="text-sm font-semibold text-text-primary">{t("autoAssignTitle")}</Dialog.Title>
                 <p className="text-xs text-text-muted mt-0.5">
-                  {eligible.length} eligible players · {totalAssigned} assigned total
+                  {t("autoAssignSummary", { eligible: eligible.length, assigned: totalAssigned })}
                 </p>
               </div>
               <Dialog.Close className="text-text-muted hover:text-text-primary">
@@ -107,7 +110,7 @@ export function AutoAssignDialog({ objectives, participants, planLang, onApply }
                     <div key={obj.id}>
                       {showTierHeader && (
                         <p className="text-[10px] font-semibold uppercase tracking-wide mt-2 mb-1" style={{ color: tierColor?.text }}>
-                          Tier {obj.tier} — +{obj.waterRate.toLocaleString()}/min
+                          {t("exportColumns.tier")} {obj.tier} - +{obj.waterRate.toLocaleString()}/min
                         </p>
                       )}
                       <div className="flex items-center justify-between gap-3 rounded px-2 py-1.5 hover:bg-raised">
@@ -128,9 +131,9 @@ export function AutoAssignDialog({ objectives, participants, planLang, onApply }
             </div>
 
             <div className="flex gap-2 justify-end pt-1">
-              <Dialog.Close render={<Button variant="ghost" size="sm" />}>Cancel</Dialog.Close>
+              <Dialog.Close render={<Button variant="ghost" size="sm" />}>{common("cancel")}</Dialog.Close>
               <Button size="sm" disabled={applying} onClick={handleApply}>
-                {applying ? "Applying…" : "Apply"}
+                {applying ? t("autoAssignApplying") : t("autoAssignApply")}
               </Button>
             </div>
           </Dialog.Popup>

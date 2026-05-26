@@ -5,6 +5,7 @@ import { prisma } from "@tiles-survive/database";
 import { Sidebar } from "@/components/platform/Sidebar";
 import { Navbar } from "@/components/platform/Navbar";
 import { BottomNav } from "@/components/platform/BottomNav";
+import { touchLastSeen } from "@/lib/last-seen";
 
 export default async function PlatformLayout({
   children,
@@ -21,6 +22,8 @@ export default async function PlatformLayout({
 
   if (platformStatus === "PENDING") redirect("/pending");
   if (platformStatus === "SUSPENDED" || banned) redirect("/suspended");
+
+  await touchLastSeen(user.id as string);
 
   const [settings, unreadCount, notifications] = await Promise.all([
     prisma.allianceSettings

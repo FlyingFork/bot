@@ -100,6 +100,7 @@ export function BottomNav({ role }: BottomNavProps) {
                   <p className="text-[11px] font-normal tracking-[0.07em] uppercase text-muted px-3 pt-3 pb-1">{t("admin")}</p>
                   <DrawerLink href="/admin/verifications" icon={ShieldCheck} label={t("verifications")} close={() => setDrawerOpen(false)} />
                   <DrawerLink href="/admin/upload-requests" icon={ListChecks} label={t("uploadRequests")} close={() => setDrawerOpen(false)} />
+                  <DrawerLink href="/admin/users" icon={Users} label={t("users")} close={() => setDrawerOpen(false)} />
                   <DrawerLink href="/admin/members" icon={UserCog} label={t("members")} close={() => setDrawerOpen(false)} />
                   <DrawerLink href="/admin/audit-log" icon={ScrollText} label={t("auditLog")} close={() => setDrawerOpen(false)} />
                   <DrawerLink href="/admin/settings" icon={Settings2} label={t("settings")} close={() => setDrawerOpen(false)} />

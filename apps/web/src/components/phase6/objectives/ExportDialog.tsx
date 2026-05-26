@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import { Download, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import type { RaidObjectiveRow, RaidParticipantRow } from "@/components/phase6/ReservoirRaidDetail";
 import { OBJECTIVE_DEFINITIONS, getObjectiveName, type ObjectiveLang } from "@/lib/raid-objectives";
@@ -140,6 +141,7 @@ function buildCsv(
 }
 
 export function ExportDialog({ planId, raidDate, startsAt, objectives, participants, defaultLang }: Props) {
+  const t = useTranslations("phase6.reservoirRaid.objectives");
   const [open, setOpen] = useState(false);
   const [lang, setLang] = useState<ObjectiveLang>(defaultLang);
   const [format, setFormat] = useState<"txt" | "csv">("txt");
@@ -165,7 +167,7 @@ export function ExportDialog({ planId, raidDate, startsAt, objectives, participa
     <>
       <Button variant="ghost" size="sm" onClick={() => { setLang(defaultLang); setOpen(true); }}>
         <Download className="h-3.5 w-3.5" />
-        Export plan
+        {t("exportPlan")}
       </Button>
 
       <Dialog.Root open={open} onOpenChange={setOpen}>
@@ -173,7 +175,7 @@ export function ExportDialog({ planId, raidDate, startsAt, objectives, participa
           <Dialog.Backdrop className="fixed inset-0 z-50 bg-void/60 backdrop-blur-[2px] data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 duration-200" />
           <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm rounded-lg border border-border-subtle bg-surface shadow-card p-4 space-y-4 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95">
             <div className="flex items-start justify-between">
-              <Dialog.Title className="text-sm font-semibold text-text-primary">Export plan</Dialog.Title>
+              <Dialog.Title className="text-sm font-semibold text-text-primary">{t("exportTitle")}</Dialog.Title>
               <Dialog.Close className="text-text-muted hover:text-text-primary">
                 <X className="h-4 w-4" />
               </Dialog.Close>
@@ -181,7 +183,7 @@ export function ExportDialog({ planId, raidDate, startsAt, objectives, participa
 
             <div className="space-y-3">
               <div>
-                <p className="text-xs font-medium text-text-secondary mb-1.5">Language</p>
+                <p className="text-xs font-medium text-text-secondary mb-1.5">{t("exportLanguage")}</p>
                 <div className="flex gap-1">
                   {(["en", "ru", "tr"] as ObjectiveLang[]).map((l) => (
                     <button
@@ -202,7 +204,7 @@ export function ExportDialog({ planId, raidDate, startsAt, objectives, participa
               </div>
 
               <div>
-                <p className="text-xs font-medium text-text-secondary mb-1.5">Format</p>
+                <p className="text-xs font-medium text-text-secondary mb-1.5">{t("exportFormat")}</p>
                 <div className="flex gap-1">
                   {(["txt", "csv"] as const).map((f) => (
                     <button
@@ -216,7 +218,7 @@ export function ExportDialog({ planId, raidDate, startsAt, objectives, participa
                         color: format === f ? "#4a90d9" : "var(--text-muted)",
                       }}
                     >
-                      {f}
+                      {f === "txt" ? t("exportTxt") : t("exportCsv")}
                     </button>
                   ))}
                 </div>
@@ -225,7 +227,7 @@ export function ExportDialog({ planId, raidDate, startsAt, objectives, participa
 
             <Button size="sm" className="w-full" onClick={handleDownload}>
               <Download className="h-3.5 w-3.5" />
-              Download
+              {t("exportDownload")}
             </Button>
           </Dialog.Popup>
         </Dialog.Portal>

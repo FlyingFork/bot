@@ -18,7 +18,7 @@ export function DataCard({
   return (
     <div
       className={cn(
-        "bg-surface border border-border-subtle rounded-lg",
+        "min-w-0 bg-surface border border-border-subtle rounded-lg",
         className,
       )}
     >
@@ -37,7 +37,7 @@ export function DataCard({
           {headerAction}
         </div>
       )}
-      <div className="p-4">{children}</div>
+      <div className="min-w-0 p-4">{children}</div>
     </div>
   );
 }

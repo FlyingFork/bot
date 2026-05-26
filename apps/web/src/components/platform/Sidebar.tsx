@@ -104,6 +104,10 @@ export function Sidebar({ role, allianceName }: SidebarProps) {
               <ListChecks size={16} strokeWidth={1.5} className="shrink-0" />
               {t("uploadRequests")}
             </NavLink>
+            <NavLink href="/admin/users">
+              <Users size={16} strokeWidth={1.5} className="shrink-0" />
+              {t("users")}
+            </NavLink>
             <NavLink href="/admin/members">
               <UserCog size={16} strokeWidth={1.5} className="shrink-0" />
               {t("members")}

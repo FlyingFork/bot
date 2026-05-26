@@ -7,20 +7,35 @@ export async function GET(request: NextRequest) {
     await requireAdmin();
     const { searchParams } = new URL(request.url);
     const available = searchParams.get("available") === "true";
+    const q = searchParams.get("q")?.trim();
 
     const users = await prisma.user.findMany({
       where: {
-        platformStatus: "ACTIVE",
+        ...(available ? { platformStatus: "ACTIVE" } : {}),
         ...(available ? { allianceMemberId: null } : {}),
+        ...(!available && q
+          ? {
+              OR: [
+                { name: { contains: q, mode: "insensitive" } },
+                { username: { contains: q, mode: "insensitive" } },
+                { email: { contains: q, mode: "insensitive" } },
+              ],
+            }
+          : {}),
       },
       select: {
         id: true,
         name: true,
+        email: !available,
         username: true,
         platformStatus: true,
         role: true,
+        banned: !available,
+        lastSeenAt: !available,
+        allianceMemberId: !available,
       },
-      orderBy: { name: "asc" },
+      orderBy: available ? { name: "asc" } : { lastSeenAt: "desc" },
+      take: available ? undefined : 50,
     });
 
     return NextResponse.json({ users });
