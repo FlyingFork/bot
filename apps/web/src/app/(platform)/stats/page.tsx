@@ -30,7 +30,7 @@ export default async function StatsPage() {
       orderBy: { capturedAt: "desc" },
       include: { entries: true },
     }),
-    prisma.allianceMember.count({ where: { memberStatus: { not: "LEFT" } } }),
+    prisma.allianceMember.count({ where: { memberStatus: { notIn: ["LEFT", "TRANSFERRED"] } } }),
     prisma.allianceMember.count({ where: { isTempAway: true } }),
     prisma.allianceDuelInstance.groupBy({ by: ["outcome"], where: { status: "ENDED" }, _count: true }),
     prisma.allianceDuelInstance.groupBy({
@@ -93,7 +93,7 @@ export default async function StatsPage() {
   let health = null;
   if (isR4Plus) {
     const members = await prisma.allianceMember.findMany({
-      where: { memberStatus: { not: "LEFT" } },
+      where: { memberStatus: { notIn: ["LEFT", "TRANSFERRED"] } },
       orderBy: { username: "asc" },
       include: {
         duelScores: { orderBy: { day: { date: "desc" } }, take: 1, include: { day: { select: { date: true } } } },

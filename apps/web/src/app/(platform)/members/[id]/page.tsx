@@ -90,7 +90,7 @@ export default async function MemberProfilePage({ params, searchParams }: Props)
     }),
     canViewFull
       ? prisma.allianceMember.findMany({
-          where: { id: { not: id }, memberStatus: { not: "LEFT" } },
+          where: { id: { not: id }, memberStatus: { notIn: ["LEFT", "TRANSFERRED"] } },
           orderBy: { username: "asc" },
           select: { id: true, username: true },
         })

@@ -2,11 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiError, requireMinRole } from "@/lib/server-auth";
 import {
   assertLeaderboardType,
-  computeLeaderboardDiff,
-  diffSummary,
-  matchUploadRows,
+  computeUploadReview,
   validateRows,
-  type DiffEntry,
 } from "@/lib/uploads";
 import type { UploadKind } from "@/lib/upload-schemas";
 
@@ -30,30 +27,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ errors: validation.errors, rows: [], diff: [] }, { status: 400 });
     }
 
-    let diff: DiffEntry[];
-    if (kind === "LEADERBOARD_SNAPSHOT" && leaderboardType) {
-      diff = await computeLeaderboardDiff(leaderboardType, validation.rows);
-    } else {
-      const matched = await matchUploadRows(validation.rows);
-      diff = matched.flatMap((item) => [
-        ...(item.memberId
-          ? []
-          : [{
-              status: "unmatched" as const,
-              playerName: String(item.row.playerName ?? ""),
-              row: item.rowNumber,
-              memberId: null,
-            }]),
-        {
-          status: "new" as const,
-          playerName: String(item.row.playerName ?? ""),
-          newValue: item.row,
-          memberId: item.memberId,
-        },
-      ]);
-    }
+    const review = await computeUploadReview({ kind, leaderboardType, rows: validation.rows });
 
-    return NextResponse.json({ errors: [], rows: validation.rows, diff, summary: diffSummary(diff) });
+    return NextResponse.json({ errors: [], rows: validation.rows, diff: review.diff, summary: review.summary, outliers: review.outliers });
   } catch (error) {
     return apiError(error);
   }

@@ -7,9 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { DiffTable } from "@/components/phase3/DiffTable";
 import { ReviewActions } from "@/components/phase3/ReviewActions";
+import { UploadResolutionPanel } from "@/components/phase3/UploadResolutionPanel";
 import { requireAdmin } from "@/lib/server-auth";
 import { jsonSafe } from "@/lib/json";
-import type { DiffEntry } from "@/lib/uploads";
+import type { DiffEntry, UploadOutlier, UploadResolutionData } from "@/lib/uploads";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -17,16 +18,23 @@ export default async function UploadRequestDetailPage(context: Params) {
   await requireAdmin();
   const t = await getTranslations("phase3.review");
   const { id } = await context.params;
-  const request = await prisma.pendingChange.findUnique({
-    where: { id },
-    include: {
-      submitter: { select: { username: true, name: true } },
-      reviewer: { select: { username: true, name: true } },
-    },
-  });
+  const [request, members] = await Promise.all([
+    prisma.pendingChange.findUnique({
+      where: { id },
+      include: {
+        submitter: { select: { username: true, name: true } },
+        reviewer: { select: { username: true, name: true } },
+      },
+    }),
+    prisma.allianceMember.findMany({
+      where: { memberStatus: { notIn: ["LEFT", "TRANSFERRED"] } },
+      select: { id: true, username: true },
+      orderBy: { username: "asc" },
+    }),
+  ]);
   if (!request) notFound();
 
-  const diffData = request.diffData as { items?: DiffEntry[] } | null;
+  const diffData = request.diffData as { items?: DiffEntry[]; outliers?: UploadOutlier[] } | null;
 
   return (
     <div className="space-y-6">
@@ -50,6 +58,15 @@ export default async function UploadRequestDetailPage(context: Params) {
           <Badge variant={request.status === "PENDING" ? "warning" : request.status === "APPROVED" ? "success" : "destructive"}>{request.status}</Badge>
         </div>
       </section>
+
+      {request.status === "PENDING" && (
+        <UploadResolutionPanel
+          id={request.id}
+          outliers={jsonSafe(diffData?.outliers ?? [])}
+          resolutionData={jsonSafe((request.resolutionData as UploadResolutionData | null) ?? {})}
+          members={jsonSafe(members)}
+        />
+      )}
 
       {request.status === "PENDING" && <ReviewActions id={request.id} />}
       {request.rejectionNote && <p className="rounded-md border border-cn-danger/30 bg-cn-danger/5 p-3 text-sm text-cn-danger">{request.rejectionNote}</p>}

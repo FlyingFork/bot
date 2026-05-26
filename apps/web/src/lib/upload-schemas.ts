@@ -91,7 +91,8 @@ export const UPLOAD_SCHEMA_EXAMPLES = {
     "[{ rank: number, playerName: string, collectionPower: number, allianceTag: string }]",
   ALLIANCE_PLAYER_LIST:
     "[{ playerName: string, allianceRank: string, totalPower: number }]",
-  ALLIANCE_DUEL_DAY: "[{ playerName: string, points: number }]",
+  ALLIANCE_DUEL_DAY:
+    "[{ side: \"ALLY\" | \"ENEMY\", playerName: string, points: number }]",
   RESERVOIR_RAID_RESULTS: "[{ playerName: string, waterCollected: number }]",
 } as const;
 

@@ -66,7 +66,7 @@ async function memberListRows() {
 
 async function statsMemberRows() {
   const members = await prisma.allianceMember.findMany({
-    where: { memberStatus: { not: "LEFT" } },
+    where: { memberStatus: { notIn: ["LEFT", "TRANSFERRED"] } },
     orderBy: { username: "asc" },
   });
   const scores = await getContributionScores(members.map((member) => member.id));
@@ -197,8 +197,11 @@ async function allianceDuelSummaryRows(instanceId: string | null) {
   const totals = new Map<string, ExportRow>();
   for (const day of instance.days) {
     for (const score of day.scores) {
-      const row = totals.get(score.member.username) ?? {
-        playerName: score.member.username,
+      const playerName = score.member?.username ?? score.playerName;
+      const key = `${score.side}:${playerName}`;
+      const row = totals.get(key) ?? {
+        playerName,
+        side: score.side,
         day1: null,
         day2: null,
         day3: null,
@@ -209,7 +212,7 @@ async function allianceDuelSummaryRows(instanceId: string | null) {
       };
       row[`day${day.dayNumber}`] = score.points;
       row.total = Number(row.total ?? 0) + score.points;
-      totals.set(score.member.username, row);
+      totals.set(key, row);
     }
   }
   return [...totals.values()].sort((a, b) => Number(b.total ?? 0) - Number(a.total ?? 0));

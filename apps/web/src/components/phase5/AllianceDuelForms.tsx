@@ -88,7 +88,6 @@ export function AllianceDuelEditForm({ initial }: { initial: DuelFormInitial }) 
   const [opponentTag, setOpponentTag] = useState(initial.opponentTag);
   const [opponentName, setOpponentName] = useState(initial.opponentName);
   const [status, setStatus] = useState(initial.status ?? "ACTIVE");
-  const [outcome, setOutcome] = useState(initial.outcome ?? "");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -101,7 +100,7 @@ export function AllianceDuelEditForm({ initial }: { initial: DuelFormInitial }) 
       const response = await fetch(`/api/admin/alliance-duel/${initial.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ startDate, endDate, opponentTag, opponentName, status, outcome: outcome || null }),
+        body: JSON.stringify({ startDate, endDate, opponentTag, opponentName, status }),
       });
       const data = (await response.json()) as { errorCode?: string };
       if (!response.ok) throw new Error(t(`errors.${data.errorCode ?? "generic"}`));
@@ -155,15 +154,6 @@ export function AllianceDuelEditForm({ initial }: { initial: DuelFormInitial }) 
           <select className={selectClass()} value={status} onChange={(event) => setStatus(event.target.value)}>
             <option value="ACTIVE">{t("statusValues.ACTIVE")}</option>
             <option value="ENDED">{t("statusValues.ENDED")}</option>
-          </select>
-        </label>
-        <label className="space-y-1 text-xs font-medium text-text-secondary">
-          {t("outcome")}
-          <select className={selectClass()} value={outcome} onChange={(event) => setOutcome(event.target.value)}>
-            <option value="">{t("none")}</option>
-            <option value="WIN">{t("outcomes.WIN")}</option>
-            <option value="LOSS">{t("outcomes.LOSS")}</option>
-            <option value="DRAW">{t("outcomes.DRAW")}</option>
           </select>
         </label>
       </div>

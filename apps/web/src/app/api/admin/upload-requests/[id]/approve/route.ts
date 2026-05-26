@@ -4,7 +4,7 @@ import { createAuditLog } from "@/lib/audit";
 import { jsonSafe, pickSnapshot } from "@/lib/json";
 import { createNotification } from "@/lib/notifications";
 import { apiError, requireAdmin } from "@/lib/server-auth";
-import { applyLeaderboardSnapshot, parsePendingRows } from "@/lib/uploads";
+import { applyLeaderboardSnapshot, computeUploadReview, parsePendingRows, type UploadResolutionData } from "@/lib/uploads";
 import { applyAllianceDuelDayUpload } from "@/lib/phase5";
 import { applyRaidResultsUpload } from "@/lib/phase6";
 
@@ -18,10 +18,28 @@ export async function POST(_request: Request, context: Params) {
     if (pending.status !== "PENDING") {
       return NextResponse.json({ errorCode: "notPending" }, { status: 400 });
     }
+    if (
+      pending.type !== "LEADERBOARD_SNAPSHOT" &&
+      pending.type !== "ALLIANCE_DUEL_DAY" &&
+      pending.type !== "RESERVOIR_RAID_RESULTS"
+    ) {
+      return NextResponse.json({ errorCode: "laterPhase" }, { status: 400 });
+    }
+    const resolutionData = pending.resolutionData as UploadResolutionData | null;
+    const review = await computeUploadReview({
+      kind: pending.type,
+      leaderboardType,
+      rows,
+      resolutionData,
+    });
+    if (review.summary.unresolvedOutliers > 0) {
+      return NextResponse.json({ errorCode: "unresolvedOutliers", outliers: review.outliers }, { status: 400 });
+    }
     if (pending.type === "LEADERBOARD_SNAPSHOT" && leaderboardType) {
       await applyLeaderboardSnapshot({
         leaderboardType,
         rows,
+        resolutionData,
         pendingChangeId: pending.id,
         actorId: actor.id,
         action: "UPLOAD_DATA_APPLIED",
@@ -32,6 +50,7 @@ export async function POST(_request: Request, context: Params) {
           instanceId: pending.eventInstanceId,
           dayNumber: pending.eventDay,
           rows,
+          resolutionData,
           pendingChangeId: pending.id,
           actorId: actor.id,
           action: "UPLOAD_DATA_APPLIED",
@@ -56,11 +75,12 @@ export async function POST(_request: Request, context: Params) {
 
     const updated = await prisma.pendingChange.update({
       where: { id },
-      data: {
-        status: "APPROVED",
-        reviewerId: actor.id,
-        reviewedAt: new Date(),
-      },
+        data: {
+          status: "APPROVED",
+          reviewerId: actor.id,
+          reviewedAt: new Date(),
+          diffData: { items: review.diff, summary: review.summary, outliers: review.outliers } as never,
+        },
       include: { submitter: { select: { id: true } } },
     });
 

@@ -662,7 +662,8 @@
     "status": {
       "ACTIVE": "Aktif",
       "TEMP_AWAY": "Geçici uzakta",
-      "LEFT": "Ayrıldı"
+      "LEFT": "Ayrıldı",
+      "TRANSFERRED": "Transferred"
     },
     "nav": {
       "dashboard": "Panel",
@@ -915,7 +916,9 @@
         "invalidTarget": "Geçerli bir etkinlik günü seçin.",
         "dayLocked": "Bu gün henüz yükleme için açılmadı.",
         "unmatchedRows": "Bazı oyuncu adları ittifak üyeleriyle eşleştirilemedi.",
-        "generic": "Yükleme başarısız oldu. Tekrar deneyin."
+        "generic": "Yükleme başarısız oldu. Tekrar deneyin.",
+        "unresolvedOutliers": "Resolve upload issues in the admin review queue before applying this data.",
+        "uploadTimedOut": "The upload took too long to apply. Try again; if it repeats, submit it for admin review."
       }
     },
     "diff": {
@@ -930,7 +933,9 @@
         "changed": "Değişti",
         "unchanged": "Değişmedi",
         "removed": "Kaldırıldı",
-        "unmatched": "Eşleşmedi"
+        "unmatched": "Eşleşmedi",
+        "duplicate": "Duplicate",
+        "resolved": "Resolved"
       }
     },
     "adminQueue": {
@@ -969,8 +974,9 @@
         "noteRequired": "Red notu zorunludur.",
         "notPending": "Bu istek zaten incelendi.",
         "laterPhase": "Bu yükleme türü sonraki fazda onaylanabilir.",
-        "unmatchedRows": "Bu düello yüklemesinde eşleşmeyen oyuncu adları var. Gönderenin düzeltmesi için notla reddedin.",
-        "generic": "İşlem başarısız oldu. Tekrar deneyin."
+        "unmatchedRows": "Resolve unmatched player names before approving.",
+        "generic": "İşlem başarısız oldu. Tekrar deneyin.",
+        "unresolvedOutliers": "Resolve all blocking upload issues before approving."
       }
     },
     "notifications": {
@@ -995,6 +1001,37 @@
         "UPLOAD_REJECTED": "Yükleme reddedildi",
         "ACCOUNT_VERIFIED": "Hesap doğrulandı",
         "EVENT_CREATED": "Etkinlik oluşturuldu"
+      }
+    },
+    "resolutions": {
+      "title": "Upload issue resolution",
+      "summary": "{unresolved} unresolved of {total} issue(s).",
+      "save": "Save resolutions",
+      "saved": "Resolutions saved.",
+      "saveError": "Could not save resolutions.",
+      "memberSearch": "Search members",
+      "choose": "Choose action",
+      "member": "Member",
+      "name": "Name",
+      "rowLabel": "Row {row}",
+      "blocking": "Needs action",
+      "resolved": "Resolved",
+      "types": {
+        "unmatched": "Player does not match an alliance member.",
+        "duplicate": "Duplicate uploaded player row.",
+        "absentMember": "Current member is missing from the uploaded roster."
+      },
+      "actions": {
+        "assign": "Assign to member",
+        "renameMember": "Update member name",
+        "editRow": "Edit uploaded name",
+        "createPartial": "Create partial profile",
+        "remove": "Remove uploaded row"
+      },
+      "absent": {
+        "keep": "Keep active",
+        "inactive": "Mark inactive",
+        "transferred": "Mark transferred"
       }
     }
   },
@@ -1245,6 +1282,18 @@
         "notFound": "Düello bulunamadı.",
         "hasData": "Bu düelloda yüklenmiş veri var ve silinemez.",
         "generic": "İşlem başarısız oldu. Tekrar deneyin."
+      },
+      "search": "Search",
+      "searchOpponent": "Search opponent",
+      "side": "Side",
+      "allSides": "All sides",
+      "searchPlayers": "Search players",
+      "allyPoints": "Alliance points",
+      "enemyPoints": "Enemy points",
+      "topEnemies": "Top enemy contributors",
+      "sides": {
+        "ALLY": "Alliance",
+        "ENEMY": "Enemy"
       }
     }
   },

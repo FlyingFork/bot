@@ -11,13 +11,44 @@ import {
 export type UploadRow = Record<string, string | number>;
 
 export type DiffEntry = {
-  status: "new" | "changed" | "unchanged" | "removed" | "unmatched";
+  status: "new" | "changed" | "unchanged" | "removed" | "unmatched" | "duplicate" | "resolved";
   playerName: string;
   field?: string;
   oldValue?: unknown;
   newValue?: unknown;
   row?: number;
   memberId?: string | null;
+};
+
+export type RowResolution =
+  | { action: "assign"; memberId: string }
+  | { action: "renameMember"; memberId: string; name: string }
+  | { action: "editRow"; name: string }
+  | { action: "createPartial" }
+  | { action: "remove" };
+
+export type RosterAbsentResolution = "keep" | "inactive" | "transferred";
+
+export type UploadResolutionData = {
+  rows?: Record<string, RowResolution>;
+  absentMembers?: Record<string, RosterAbsentResolution>;
+};
+
+export type UploadOutlier = {
+  id: string;
+  type: "unmatched" | "duplicate" | "absentMember";
+  row?: number;
+  playerName: string;
+  memberId?: string | null;
+  memberName?: string;
+  blocking: boolean;
+  resolution?: RowResolution | RosterAbsentResolution;
+};
+
+export type UploadReview = {
+  diff: DiffEntry[];
+  summary: ReturnType<typeof diffSummary> & { outliers: number; unresolvedOutliers: number };
+  outliers: UploadOutlier[];
 };
 
 export type UploadTarget = {
@@ -45,6 +76,28 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function normalize(value: string) {
   return value.trim().toLowerCase();
+}
+
+export function rowSide(row: UploadRow): "ALLY" | "ENEMY" {
+  return row.side === "ENEMY" ? "ENEMY" : "ALLY";
+}
+
+function rowName(row: UploadRow) {
+  return String(row.playerName ?? "").trim();
+}
+
+function rowKey(rowNumber: number) {
+  return String(rowNumber);
+}
+
+function cleanResolutionData(value: unknown): UploadResolutionData {
+  if (!isRecord(value)) return {};
+  const rows = isRecord(value.rows) ? value.rows : undefined;
+  const absentMembers = isRecord(value.absentMembers) ? value.absentMembers : undefined;
+  return {
+    rows: rows as UploadResolutionData["rows"],
+    absentMembers: absentMembers as UploadResolutionData["absentMembers"],
+  };
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -105,6 +158,19 @@ export function validateRows(kind: UploadKind, leaderboardType: string | null | 
         errors.push({ code: "number", row: rowNumber, field });
       } else {
         row[field] = value;
+      }
+    }
+    if (kind === "ALLIANCE_DUEL_DAY") {
+      const side = item.side;
+      if (typeof row.points === "number" && row.points < 0) {
+        errors.push({ code: "number", row: rowNumber, field: "points" });
+      }
+      if (side === undefined || side === null || side === "") {
+        row.side = "ALLY";
+      } else if (side === "ALLY" || side === "ENEMY") {
+        row.side = side;
+      } else {
+        errors.push({ code: "string", row: rowNumber, field: "side" });
       }
     }
     rows.push(row);
@@ -254,6 +320,228 @@ export function diffSummary(diff: DiffEntry[]) {
   };
 }
 
+function applyRowOnlyResolutions(rows: UploadRow[], resolutionData?: UploadResolutionData) {
+  const resolutions = resolutionData?.rows ?? {};
+  return rows.flatMap((row, index): { row: UploadRow; originalRowNumber: number }[] => {
+    const resolution = resolutions[rowKey(index + 1)];
+    if (resolution?.action === "remove") return [];
+    if (resolution?.action === "editRow") return [{ row: { ...row, playerName: resolution.name.trim() }, originalRowNumber: index + 1 }];
+    return [{ row: { ...row }, originalRowNumber: index + 1 }];
+  });
+}
+
+export async function computeUploadReview({
+  kind,
+  leaderboardType,
+  rows,
+  resolutionData,
+}: {
+  kind: UploadKind;
+  leaderboardType?: LeaderboardTypeName | null;
+  rows: UploadRow[];
+  resolutionData?: UploadResolutionData | null;
+}): Promise<UploadReview> {
+  const cleanResolutions = cleanResolutionData(resolutionData);
+  const preparedRows = applyRowOnlyResolutions(rows, cleanResolutions);
+  const reviewRows = preparedRows.map((item) => item.row);
+  const diff =
+    kind === "LEADERBOARD_SNAPSHOT" && leaderboardType
+      ? await computeLeaderboardDiff(leaderboardType, reviewRows)
+      : (await matchUploadRows(reviewRows)).flatMap((item) => [
+          ...(!item.memberId && rowSide(item.row) === "ALLY" && kind !== "RESERVOIR_RAID_RESULTS"
+            ? [{
+                status: "unmatched" as const,
+                playerName: rowName(item.row),
+                row: item.rowNumber,
+                memberId: null,
+              }]
+            : []),
+          {
+            status: "new" as const,
+            playerName: rowName(item.row),
+            newValue: item.row,
+            memberId: item.memberId,
+          },
+        ]);
+
+  const matched = await matchUploadRows(reviewRows);
+  const outliers: UploadOutlier[] = [];
+  const seenRows = new Map<string, number[]>();
+  const seenMembers = new Map<string, number[]>();
+  const rowByOriginalNumber = new Map<number, UploadRow>();
+
+  matched.forEach((item, index) => {
+    const originalRowNumber = preparedRows[index]?.originalRowNumber ?? item.rowNumber;
+    rowByOriginalNumber.set(originalRowNumber, item.row);
+    const name = rowName(item.row);
+    const side = rowSide(item.row);
+    const duplicateKey = kind === "ALLIANCE_DUEL_DAY" ? `${side}:${normalize(name)}` : normalize(name);
+    const existing = seenRows.get(duplicateKey) ?? [];
+    existing.push(originalRowNumber);
+    seenRows.set(duplicateKey, existing);
+    if (side === "ALLY" && item.memberId) {
+      const existingMemberRows = seenMembers.get(item.memberId) ?? [];
+      existingMemberRows.push(originalRowNumber);
+      seenMembers.set(item.memberId, existingMemberRows);
+    }
+
+    const resolution = cleanResolutions.rows?.[rowKey(originalRowNumber)];
+    const resolved =
+      resolution?.action === "assign" ||
+      resolution?.action === "renameMember" ||
+      resolution?.action === "createPartial" ||
+      resolution?.action === "remove";
+    if (!item.memberId && side === "ALLY" && !resolved && kind !== "RESERVOIR_RAID_RESULTS") {
+      outliers.push({
+        id: `row-${item.rowNumber}-unmatched`,
+        type: "unmatched",
+        row: originalRowNumber,
+        playerName: name,
+        memberId: null,
+        blocking: true,
+      });
+    } else if (!item.memberId && side === "ALLY" && resolved && kind !== "RESERVOIR_RAID_RESULTS") {
+      outliers.push({
+        id: `row-${item.rowNumber}-resolved`,
+        type: "unmatched",
+        row: originalRowNumber,
+        playerName: name,
+        memberId: null,
+        blocking: false,
+        resolution,
+      });
+    }
+  });
+
+  for (const rowNumbers of seenRows.values()) {
+    if (rowNumbers.length < 2) continue;
+    for (const duplicateRow of rowNumbers) {
+      const resolution = cleanResolutions.rows?.[rowKey(duplicateRow)];
+      if (resolution?.action === "remove") continue;
+      const row = rowByOriginalNumber.get(duplicateRow);
+      outliers.push({
+        id: `row-${duplicateRow}-duplicate`,
+        type: "duplicate",
+        row: duplicateRow,
+        playerName: row ? rowName(row) : "",
+        blocking: true,
+      });
+    }
+  }
+
+  for (const rowNumbers of seenMembers.values()) {
+    if (rowNumbers.length < 2) continue;
+    for (const duplicateRow of rowNumbers) {
+      const resolution = cleanResolutions.rows?.[rowKey(duplicateRow)];
+      if (resolution?.action === "remove") continue;
+      const row = rowByOriginalNumber.get(duplicateRow);
+      outliers.push({
+        id: `row-${duplicateRow}-duplicate-member`,
+        type: "duplicate",
+        row: duplicateRow,
+        playerName: row ? rowName(row) : "",
+        blocking: true,
+      });
+    }
+  }
+
+  if (kind === "LEADERBOARD_SNAPSHOT" && leaderboardType === "ALLIANCE_PLAYER_LIST") {
+    const uploadedMemberIds = new Set(matched.map((item) => item.memberId).filter(Boolean));
+    const currentMembers = await prisma.allianceMember.findMany({
+      where: { memberStatus: { notIn: ["LEFT", "TRANSFERRED"] } },
+      select: { id: true, username: true },
+      orderBy: { username: "asc" },
+    });
+    for (const member of currentMembers) {
+      for (const item of matched) {
+        const originalRowNumber = preparedRows[item.rowNumber - 1]?.originalRowNumber ?? item.rowNumber;
+        const resolution = cleanResolutions.rows?.[rowKey(originalRowNumber)];
+        if ((resolution?.action === "assign" || resolution?.action === "renameMember") && resolution.memberId === member.id) {
+          uploadedMemberIds.add(member.id);
+        }
+      }
+      if (uploadedMemberIds.has(member.id)) continue;
+      const resolution = cleanResolutions.absentMembers?.[member.id];
+      outliers.push({
+        id: `absent-${member.id}`,
+        type: "absentMember",
+        playerName: member.username,
+        memberId: member.id,
+        memberName: member.username,
+        blocking: !resolution,
+        resolution,
+      });
+    }
+  }
+
+  const baseSummary = diffSummary(diff);
+  return {
+    diff,
+    outliers,
+    summary: {
+      ...baseSummary,
+      outliers: outliers.length,
+      unresolvedOutliers: outliers.filter((item) => item.blocking).length,
+    },
+  };
+}
+
+export async function resolveRowsForApply({
+  rows,
+  resolutionData,
+  tx,
+}: {
+  rows: UploadRow[];
+  resolutionData?: UploadResolutionData | null;
+  tx: typeof prisma;
+}) {
+  const cleanResolutions = cleanResolutionData(resolutionData);
+  const prepared: { row: UploadRow; originalRowNumber: number; resolution?: RowResolution }[] = [];
+  rows.forEach((row, index) => {
+    const resolution = cleanResolutions.rows?.[rowKey(index + 1)];
+    if (resolution?.action === "remove") return;
+    if (resolution?.action === "editRow") {
+      prepared.push({ row: { ...row, playerName: resolution.name.trim() }, originalRowNumber: index + 1, resolution });
+      return;
+    }
+    prepared.push({ row: { ...row }, originalRowNumber: index + 1, resolution });
+  });
+  const matched = await matchUploadRows(prepared.map((item) => item.row));
+
+  for (const [index, item] of prepared.entries()) {
+    const match = matched[index];
+    const resolution = item.resolution;
+    if (resolution?.action === "assign") {
+      match.memberId = resolution.memberId;
+    } else if (resolution?.action === "renameMember") {
+      const member = await tx.allianceMember.findUnique({ where: { id: resolution.memberId }, select: { username: true } });
+      if (member && normalize(member.username) !== normalize(resolution.name)) {
+        await tx.memberNameHistory.create({ data: { memberId: resolution.memberId, name: member.username } });
+        await tx.allianceMember.update({ where: { id: resolution.memberId }, data: { username: resolution.name.trim(), isPartial: false } });
+      }
+      match.memberId = resolution.memberId;
+      item.row.playerName = resolution.name.trim();
+    } else if (resolution?.action === "createPartial") {
+      const created = await tx.allianceMember.create({
+        data: {
+          username: rowName(item.row),
+          active: true,
+          isPartial: true,
+          memberStatus: "ACTIVE",
+          currentPower: totalPower(item.row.totalPower),
+          currentRank: allianceRank(item.row.allianceRank),
+          joinedAt: new Date(),
+          lastRosterImportedAt: new Date(),
+        },
+        select: { id: true },
+      });
+      match.memberId = created.id;
+    }
+  }
+
+  return matched.map((item, index) => ({ ...item, row: prepared[index].row, rowNumber: prepared[index].originalRowNumber }));
+}
+
 export function assertLeaderboardType(value: unknown): LeaderboardTypeName {
   if (typeof value === "string" && LEADERBOARD_TYPES.includes(value as LeaderboardTypeName)) {
     return value as LeaderboardTypeName;
@@ -264,23 +552,32 @@ export function assertLeaderboardType(value: unknown): LeaderboardTypeName {
 export async function applyLeaderboardSnapshot({
   leaderboardType,
   rows,
+  resolutionData,
   pendingChangeId,
   actorId,
   action,
 }: {
   leaderboardType: LeaderboardTypeName;
   rows: UploadRow[];
+  resolutionData?: UploadResolutionData | null;
   pendingChangeId?: string | null;
   actorId: string;
   action: string;
 }) {
-  const matched = await matchUploadRows(rows);
   const activeSeason =
     leaderboardType === "BATTLE_VANGUARD"
       ? await prisma.season.findFirst({ where: { isActive: true }, select: { id: true } })
       : null;
 
   return prisma.$transaction(async (tx) => {
+    const matched = await resolveRowsForApply({ rows, resolutionData, tx: tx as typeof prisma });
+    const unresolved = matched.filter((item) => rowSide(item.row) === "ALLY" && !item.memberId);
+    if (unresolved.length > 0) {
+      const error = new Error("Unresolved upload rows");
+      error.name = "UNRESOLVED_UPLOAD_OUTLIERS";
+      throw error;
+    }
+
     if (leaderboardType === "ALLIANCE_PLAYER_LIST") {
       const now = new Date();
       const membersByName = new Map<string, string>();
@@ -353,9 +650,27 @@ export async function applyLeaderboardSnapshot({
         await tx.allianceMember.update({
           where: { id: item.memberId },
           data: {
+            active: true,
+            memberStatus: "ACTIVE",
+            isPartial: false,
             ...(powerValue !== undefined && { currentPower: powerValue }),
             ...(rankValue !== undefined && { currentRank: rankValue }),
             lastRosterImportedAt: now,
+          },
+        });
+      }
+
+      const resolutions = cleanResolutionData(resolutionData);
+      for (const [memberId, decision] of Object.entries(resolutions.absentMembers ?? {})) {
+        if (decision === "keep") continue;
+        await tx.allianceMember.update({
+          where: { id: memberId },
+          data: {
+            active: false,
+            memberStatus: decision === "transferred" ? "TRANSFERRED" : "LEFT",
+            leftAt: now,
+            isTempAway: false,
+            tempAwayAllianceTag: null,
           },
         });
       }

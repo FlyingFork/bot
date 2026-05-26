@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 export const RANKS = ["R5", "R4", "R3", "R2", "R1"] as const;
 export const ROLES = ["r5", "r4", "r3", "r2", "r1"] as const;
-export const STATUSES = ["ACTIVE", "TEMP_AWAY", "LEFT"] as const;
+export const STATUSES = ["ACTIVE", "TEMP_AWAY", "TRANSFERRED", "LEFT"] as const;
 
 export function formatDate(value: string | Date | null | undefined) {
   if (!value) return "None";
@@ -25,7 +25,8 @@ export function statusBadge(status: string, className?: string, label?: string) 
   const variant =
     status === "ACTIVE" ? "success" :
     status === "TEMP_AWAY" ? "warning" :
-    status === "LEFT" ? "destructive" : "secondary";
+    status === "LEFT" ? "destructive" :
+    status === "TRANSFERRED" ? "secondary" : "secondary";
   return <Badge variant={variant} className={cn(className)}>{label ?? status.replace("_", " ")}</Badge>;
 }
 

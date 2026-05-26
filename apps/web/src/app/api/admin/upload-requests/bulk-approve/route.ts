@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiError, requireAdmin } from "@/lib/server-auth";
-import { applyLeaderboardSnapshot, parsePendingRows } from "@/lib/uploads";
+import { applyLeaderboardSnapshot, computeUploadReview, parsePendingRows, type UploadResolutionData } from "@/lib/uploads";
 import { prisma } from "@tiles-survive/database";
 import { createAuditLog } from "@/lib/audit";
 import { jsonSafe, pickSnapshot } from "@/lib/json";
@@ -20,10 +20,21 @@ export async function POST(request: NextRequest) {
         results.push({ id, ok: false, errorCode: "notPending" });
         continue;
       }
+      if (pending.type !== "LEADERBOARD_SNAPSHOT" && pending.type !== "ALLIANCE_DUEL_DAY") {
+        results.push({ id, ok: false, errorCode: "laterPhase" });
+        continue;
+      }
+      const resolutionData = pending.resolutionData as UploadResolutionData | null;
+      const review = await computeUploadReview({ kind: pending.type, leaderboardType, rows, resolutionData });
+      if (review.summary.unresolvedOutliers > 0) {
+        results.push({ id, ok: false, errorCode: "unresolvedOutliers" });
+        continue;
+      }
       if (pending.type === "LEADERBOARD_SNAPSHOT" && leaderboardType) {
         await applyLeaderboardSnapshot({
           leaderboardType,
           rows,
+          resolutionData,
           pendingChangeId: pending.id,
           actorId: actor.id,
           action: "UPLOAD_DATA_APPLIED",
@@ -34,6 +45,7 @@ export async function POST(request: NextRequest) {
             instanceId: pending.eventInstanceId,
             dayNumber: pending.eventDay,
             rows,
+            resolutionData,
             pendingChangeId: pending.id,
             actorId: actor.id,
             action: "UPLOAD_DATA_APPLIED",
@@ -51,7 +63,12 @@ export async function POST(request: NextRequest) {
       }
       const updated = await prisma.pendingChange.update({
         where: { id },
-        data: { status: "APPROVED", reviewerId: actor.id, reviewedAt: new Date() },
+        data: {
+          status: "APPROVED",
+          reviewerId: actor.id,
+          reviewedAt: new Date(),
+          diffData: { items: review.diff, summary: review.summary, outliers: review.outliers } as never,
+        },
         include: { submitter: { select: { id: true } } },
       });
       await createAuditLog(actor.id, "UPLOAD_APPROVED", "PendingChange", id, pickSnapshot(pending), pickSnapshot(jsonSafe(updated)));

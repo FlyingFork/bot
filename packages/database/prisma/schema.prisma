@@ -39,6 +39,7 @@ enum PlatformUserStatus {
 enum MemberStatus {
   ACTIVE
   TEMP_AWAY
+  TRANSFERRED
   LEFT
 }
 
@@ -90,6 +91,11 @@ enum DuelOutcome {
   WIN
   LOSS
   DRAW
+}
+
+enum DuelSide {
+  ALLY
+  ENEMY
 }
 
 enum RegistrationStatus {
@@ -419,6 +425,7 @@ model AllianceMember {
   id                     String        @id @default(cuid())
   username               String        @unique
   active                 Boolean       @default(true)
+  isPartial              Boolean       @default(false) @map("is_partial")
   currentRank            AllianceRank? @map("current_rank")
   currentPower           BigInt?       @map("current_power")
   currentPowerPlantLevel Int?          @map("current_power_plant_level")
@@ -563,6 +570,7 @@ model PendingChange {
   eventInstanceType String?          @map("event_instance_type")
   eventDay          Int?             @map("event_day")
   diffData          Json?            @map("diff_data")
+  resolutionData    Json?            @map("resolution_data")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -601,6 +609,8 @@ model AllianceDuelDay {
   pointValue      Int                  @map("point_value")
   hasData         Boolean              @default(false) @map("has_data")
   dayOutcome      DuelOutcome?         @map("day_outcome")
+  allyTotalPoints  Int                  @default(0) @map("ally_total_points")
+  enemyTotalPoints Int                  @default(0) @map("enemy_total_points")
   changeRequestId String?              @map("change_request_id")
   scores          AllianceDuelScore[]
 
@@ -612,11 +622,14 @@ model AllianceDuelScore {
   id       String          @id @default(cuid())
   dayId    String          @map("day_id")
   day      AllianceDuelDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
-  memberId String          @map("member_id")
-  member   AllianceMember  @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  side     DuelSide        @default(ALLY)
+  memberId String?         @map("member_id")
+  member   AllianceMember? @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  playerName String        @default("") @map("player_name")
   points   Int
 
   @@unique([dayId, memberId])
+  @@index([dayId, side])
   @@index([memberId])
   @@map("alliance_duel_scores")
 }

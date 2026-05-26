@@ -5,12 +5,9 @@ import { notifyAllAdmins } from "@/lib/notifications";
 import { applyAllianceDuelDayUpload, canUploadDuelDay } from "@/lib/phase5";
 import {
   assertLeaderboardType,
-  computeLeaderboardDiff,
-  diffSummary,
+  computeUploadReview,
   hasPendingUpload,
-  matchUploadRows,
   validateRows,
-  type DiffEntry,
   type UploadTarget,
 } from "@/lib/uploads";
 import type { UploadKind } from "@/lib/upload-schemas";
@@ -62,6 +59,10 @@ export async function POST(request: NextRequest) {
       }
 
       if (user.role === "admin") {
+        const directReview = await computeUploadReview({ kind, leaderboardType, rows: validation.rows });
+        if (directReview.summary.unresolvedOutliers > 0) {
+          return NextResponse.json({ errorCode: "unresolvedOutliers", outliers: directReview.outliers }, { status: 400 });
+        }
         try {
           await applyAllianceDuelDayUpload({
             instanceId: body.eventInstanceId,
@@ -74,29 +75,16 @@ export async function POST(request: NextRequest) {
           if (error instanceof Error && error.name === "UNMATCHED_DUEL_ROWS") {
             return NextResponse.json({ errorCode: "unmatchedRows" }, { status: 400 });
           }
+          if (typeof error === "object" && error && "code" in error && error.code === "P2028") {
+            return NextResponse.json({ errorCode: "uploadTimedOut" }, { status: 503 });
+          }
           throw error;
         }
         return NextResponse.json({ ok: true, applied: true });
       }
     }
 
-    let diff: DiffEntry[];
-    if (kind === "LEADERBOARD_SNAPSHOT" && leaderboardType) {
-      diff = await computeLeaderboardDiff(leaderboardType, validation.rows);
-    } else {
-      const matched = await matchUploadRows(validation.rows);
-      diff = matched.flatMap((item) => [
-        ...(item.memberId
-          ? []
-          : [{
-              status: "unmatched" as const,
-              playerName: String(item.row.playerName ?? ""),
-              row: item.rowNumber,
-              memberId: null,
-            }]),
-        { status: "new" as const, playerName: String(item.row.playerName ?? ""), newValue: item.row, memberId: item.memberId },
-      ]);
-    }
+    const review = await computeUploadReview({ kind, leaderboardType, rows: validation.rows });
 
     const change = await prisma.pendingChange.create({
       data: {
@@ -107,7 +95,7 @@ export async function POST(request: NextRequest) {
         eventInstanceId: body.eventInstanceId ?? null,
         eventInstanceType: body.eventInstanceType ?? (kind === "RESERVOIR_RAID_RESULTS" ? "RESERVOIR_RAID" : null),
         eventDay: body.eventDay ?? null,
-        diffData: { items: diff, summary: diffSummary(diff) } as never,
+        diffData: { items: review.diff, summary: review.summary, outliers: review.outliers } as never,
       },
     });
 

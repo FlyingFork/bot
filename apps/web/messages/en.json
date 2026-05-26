@@ -662,6 +662,7 @@
     "status": {
       "ACTIVE": "Active",
       "TEMP_AWAY": "Temp away",
+      "TRANSFERRED": "Transferred",
       "LEFT": "Left"
     },
     "nav": {
@@ -915,6 +916,8 @@
         "invalidTarget": "Choose a valid event day.",
         "dayLocked": "This day is not available for upload yet.",
         "unmatchedRows": "Some player names could not be matched to alliance members.",
+        "unresolvedOutliers": "Resolve upload issues in the admin review queue before applying this data.",
+        "uploadTimedOut": "The upload took too long to apply. Try again; if it repeats, submit it for admin review.",
         "generic": "Upload failed. Please try again."
       }
     },
@@ -930,7 +933,40 @@
         "changed": "Changed",
         "unchanged": "Unchanged",
         "removed": "Removed",
-        "unmatched": "Unmatched"
+        "unmatched": "Unmatched",
+        "duplicate": "Duplicate",
+        "resolved": "Resolved"
+      }
+    },
+    "resolutions": {
+      "title": "Upload issue resolution",
+      "summary": "{unresolved} unresolved of {total} issue(s).",
+      "save": "Save resolutions",
+      "saved": "Resolutions saved.",
+      "saveError": "Could not save resolutions.",
+      "memberSearch": "Search members",
+      "choose": "Choose action",
+      "member": "Member",
+      "name": "Name",
+      "rowLabel": "Row {row}",
+      "blocking": "Needs action",
+      "resolved": "Resolved",
+      "types": {
+        "unmatched": "Player does not match an alliance member.",
+        "duplicate": "Duplicate uploaded player row.",
+        "absentMember": "Current member is missing from the uploaded roster."
+      },
+      "actions": {
+        "assign": "Assign to member",
+        "renameMember": "Update member name",
+        "editRow": "Edit uploaded name",
+        "createPartial": "Create partial profile",
+        "remove": "Remove uploaded row"
+      },
+      "absent": {
+        "keep": "Keep active",
+        "inactive": "Mark inactive",
+        "transferred": "Mark transferred"
       }
     },
     "adminQueue": {
@@ -969,7 +1005,8 @@
         "noteRequired": "Rejection note is required.",
         "notPending": "This request has already been reviewed.",
         "laterPhase": "This upload type can be approved in a later phase.",
-        "unmatchedRows": "This duel upload has unmatched player names. Reject it with a note so the submitter can correct it.",
+        "unmatchedRows": "This duel upload has unmatched player names. Resolve them before approving.",
+        "unresolvedOutliers": "Resolve all blocking upload issues before approving.",
         "generic": "Action failed. Please try again."
       }
     },
@@ -1191,6 +1228,8 @@
       "empty": "No Alliance Duel instances match this view.",
       "allStatuses": "All statuses",
       "allOutcomes": "All outcomes",
+      "search": "Search",
+      "searchOpponent": "Search opponent",
       "from": "From",
       "to": "To",
       "none": "None",
@@ -1201,6 +1240,11 @@
       "recordSuffix": "W/L/D",
       "pointValue": "{value}x points",
       "memberName": "Member name",
+      "side": "Side",
+      "allSides": "All sides",
+      "searchPlayers": "Search players",
+      "allyPoints": "Alliance points",
+      "enemyPoints": "Enemy points",
       "points": "Points",
       "noDataUploaded": "No data uploaded",
       "uploadDay": "Upload day",
@@ -1208,6 +1252,7 @@
       "summary": "Summary",
       "membersWithData": "members",
       "topContributors": "Top 5 contributors",
+      "topEnemies": "Top enemy contributors",
       "membersNoData": "Members with at least one no-data day",
       "membersZeroPoints": "Members with 0 points on a data day",
       "timeline": "Timeline",
@@ -1223,6 +1268,10 @@
         "WIN": "Win",
         "LOSS": "Loss",
         "DRAW": "Draw"
+      },
+      "sides": {
+        "ALLY": "Alliance",
+        "ENEMY": "Enemy"
       },
       "days": {
         "day1": "Monday",

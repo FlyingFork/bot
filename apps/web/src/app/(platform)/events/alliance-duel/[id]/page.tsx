@@ -4,7 +4,7 @@ import { prisma } from "@tiles-survive/database";
 import { PageHeader } from "@/components/ui/page-header";
 import { AllianceDuelDetail, type DuelDetailData } from "@/components/phase5/AllianceDuelDetail";
 import { requireUser } from "@/lib/server-auth";
-import { canUploadDuelDay } from "@/lib/phase5";
+import { canUploadDuelDay, recalculateAllianceDuelInstance } from "@/lib/phase5";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -12,6 +12,7 @@ export default async function AllianceDuelDetailPage({ params }: Props) {
   const user = await requireUser();
   const { id } = await params;
   const t = await getTranslations("phase5.allianceDuel");
+  await recalculateAllianceDuelInstance(id);
 
   const [duel, pendingChanges, activeMembers] = await Promise.all([
     prisma.allianceDuelInstance.findUnique({
@@ -33,7 +34,7 @@ export default async function AllianceDuelDetailPage({ params }: Props) {
       select: { eventDay: true },
     }),
     prisma.allianceMember.findMany({
-      where: { memberStatus: { not: "LEFT" } },
+      where: { memberStatus: { notIn: ["LEFT", "TRANSFERRED"] } },
       select: { id: true, username: true },
       orderBy: { username: "asc" },
     }),
@@ -43,16 +44,23 @@ export default async function AllianceDuelDetailPage({ params }: Props) {
   const pendingDays = new Set(pendingChanges.map((change) => change.eventDay).filter(Boolean));
   const dataDays = duel.days.filter((day) => day.hasData);
   const totalByMember = new Map<string, { memberId: string; memberName: string; total: number }>();
+  const totalByEnemy = new Map<string, { playerName: string; total: number }>();
   const zeroPointMembers = new Set<string>();
   const noDataMembers = new Set<string>();
 
   for (const day of dataDays) {
-    const scoredMembers = new Set(day.scores.map((score) => score.memberId));
-    for (const score of day.scores) {
-      const current = totalByMember.get(score.memberId) ?? { memberId: score.memberId, memberName: score.member.username, total: 0 };
+    const allyScores = day.scores.filter((score) => score.side === "ALLY" && score.memberId);
+    for (const score of day.scores.filter((score) => score.side === "ENEMY")) {
+      const key = score.playerName;
+      totalByEnemy.set(key, { playerName: key, total: (totalByEnemy.get(key)?.total ?? 0) + score.points });
+    }
+    const scoredMembers = new Set(allyScores.map((score) => score.memberId));
+    for (const score of allyScores) {
+      const memberName = score.member?.username ?? score.playerName;
+      const current = totalByMember.get(score.memberId!) ?? { memberId: score.memberId!, memberName, total: 0 };
       current.total += score.points;
-      totalByMember.set(score.memberId, current);
-      if (score.points === 0) zeroPointMembers.add(score.member.username);
+      totalByMember.set(score.memberId!, current);
+      if (score.points === 0) zeroPointMembers.add(memberName);
     }
     for (const member of activeMembers) {
       if (!scoredMembers.has(member.id)) noDataMembers.add(member.username);
@@ -74,11 +82,15 @@ export default async function AllianceDuelDetailPage({ params }: Props) {
       pointValue: day.pointValue,
       hasData: day.hasData,
       dayOutcome: day.dayOutcome,
+      allyTotalPoints: day.allyTotalPoints,
+      enemyTotalPoints: day.enemyTotalPoints,
       pendingUpload: pendingDays.has(day.dayNumber),
       uploadEnabled: canUploadDuelDay({ role: user.role, status: duel.status, dayDate: day.date }),
       scores: day.scores.map((score) => ({
         id: score.id,
-        memberName: score.member.username,
+        memberName: score.member?.username ?? score.playerName,
+        playerName: score.playerName,
+        side: score.side,
         points: score.points,
       })),
     })),
@@ -90,6 +102,7 @@ export default async function AllianceDuelDetailPage({ params }: Props) {
         hasData: day.hasData,
       })),
       topContributors: [...totalByMember.values()].sort((a, b) => b.total - a.total).slice(0, 5),
+      topEnemies: [...totalByEnemy.values()].sort((a, b) => b.total - a.total).slice(0, 5),
       noDataMembers: [...noDataMembers].sort((a, b) => a.localeCompare(b)),
       zeroPointMembers: [...zeroPointMembers].sort((a, b) => a.localeCompare(b)),
     },

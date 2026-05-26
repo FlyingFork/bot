@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Edit, Upload } from "lucide-react";
 import { TimeDisplay } from "@/components/TimeDisplay";
@@ -48,6 +48,8 @@ function DualRangeSlider({ max, low, high, onLow, onHigh }: {
 export type DuelScoreRow = {
   id: string;
   memberName: string;
+  playerName: string;
+  side: string;
   points: number;
 };
 
@@ -58,6 +60,8 @@ export type DuelDayRow = {
   pointValue: number;
   hasData: boolean;
   dayOutcome: string | null;
+  allyTotalPoints: number;
+  enemyTotalPoints: number;
   uploadEnabled: boolean;
   pendingUpload: boolean;
   scores: DuelScoreRow[];
@@ -66,6 +70,7 @@ export type DuelDayRow = {
 export type DuelSummary = {
   countsByDay: { dayNumber: number; count: number; outcome: string | null; hasData: boolean }[];
   topContributors: { memberId: string; memberName: string; total: number }[];
+  topEnemies: { playerName: string; total: number }[];
   noDataMembers: string[];
   zeroPointMembers: string[];
 };
@@ -86,74 +91,19 @@ function selectClass() {
   return "h-8 rounded-[4px] border border-border-default bg-raised px-2 text-xs text-text-primary";
 }
 
-function DayOutcomeControl({ dayId, value, disabled }: { dayId: string; value: string | null; disabled: boolean }) {
-  const t = useTranslations("phase5.allianceDuel");
-  const router = useRouter();
-  const [busy, setBusy] = useState(false);
-
-  async function update(next: string) {
-    setBusy(true);
-    try {
-      await fetch(`/api/admin/alliance-duel/days/${dayId}/outcome`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ outcome: next || null }),
-      });
-      router.refresh();
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (disabled) return value ? <Badge variant="secondary">{t(`outcomes.${value}`)}</Badge> : <Badge variant="outline">{t("none")}</Badge>;
-
-  return (
-    <select className={selectClass()} value={value ?? ""} disabled={busy} onChange={(event) => update(event.target.value)}>
-      <option value="">{t("none")}</option>
-      <option value="WIN">{t("outcomes.WIN")}</option>
-      <option value="LOSS">{t("outcomes.LOSS")}</option>
-      <option value="DRAW">{t("outcomes.DRAW")}</option>
-    </select>
-  );
-}
-
-function InstanceOutcomeControl({ instanceId, value, isAdmin }: { instanceId: string; value: string | null; isAdmin: boolean }) {
-  const t = useTranslations("phase5.allianceDuel");
-  const router = useRouter();
-  const [busy, setBusy] = useState(false);
-
-  async function update(next: string) {
-    setBusy(true);
-    try {
-      await fetch(`/api/admin/alliance-duel/${instanceId}/outcome`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ outcome: next || null }),
-      });
-      router.refresh();
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (!isAdmin) return value ? <Badge variant="secondary">{t(`outcomes.${value}`)}</Badge> : <Badge variant="outline">{t("none")}</Badge>;
-
-  return (
-    <select className={selectClass()} value={value ?? ""} disabled={busy} onChange={(event) => update(event.target.value)}>
-      <option value="">{t("none")}</option>
-      <option value="WIN">{t("outcomes.WIN")}</option>
-      <option value="LOSS">{t("outcomes.LOSS")}</option>
-      <option value="DRAW">{t("outcomes.DRAW")}</option>
-    </select>
-  );
-}
-
-function DayCard({ day, isAdmin, duelId }: { day: DuelDayRow; isAdmin: boolean; duelId: string }) {
+function DayCard({ day, duelId }: { day: DuelDayRow; duelId: string }) {
   const t = useTranslations("phase5.allianceDuel");
   const maxPts = day.hasData && day.scores.length > 0 ? Math.max(...day.scores.map((s) => s.points)) : 0;
   const [low, setLow] = useState(0);
   const [high, setHigh] = useState(maxPts);
-  const visibleScores = day.scores.filter((s) => s.points >= low && s.points <= high);
+  const [side, setSide] = useState("all");
+  const [query, setQuery] = useState("");
+  const visibleScores = day.scores.filter((s) => {
+    if (s.points < low || s.points > high) return false;
+    if (side !== "all" && s.side !== side) return false;
+    if (query && !`${s.memberName} ${s.playerName}`.toLowerCase().includes(query.toLowerCase())) return false;
+    return true;
+  });
 
   return (
     <article className="space-y-3 rounded-md border border-border-subtle bg-surface p-4">
@@ -164,7 +114,9 @@ function DayCard({ day, isAdmin, duelId }: { day: DuelDayRow; isAdmin: boolean; 
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary">{t("pointValue", { value: day.pointValue })}</Badge>
-          <DayOutcomeControl dayId={day.id} value={day.dayOutcome} disabled={!isAdmin} />
+          <Badge variant={day.dayOutcome === "WIN" ? "success" : day.dayOutcome === "LOSS" ? "destructive" : "secondary"}>
+            {day.dayOutcome ? t(`outcomes.${day.dayOutcome}`) : t("none")}
+          </Badge>
         </div>
       </div>
 
@@ -172,6 +124,29 @@ function DayCard({ day, isAdmin, duelId }: { day: DuelDayRow; isAdmin: boolean; 
         <p className="rounded-md border border-border-dim bg-raised p-3 text-sm text-text-muted">{t("noDataUploaded")}</p>
       ) : (
         <>
+          <div className="grid gap-2 rounded-md border border-border-dim bg-raised p-3 sm:grid-cols-2">
+            <div>
+              <p className="text-xs text-text-muted">{t("allyPoints")}</p>
+              <p className="text-lg font-bold text-text-primary">{fmtPts(day.allyTotalPoints)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-text-muted">{t("enemyPoints")}</p>
+              <p className="text-lg font-bold text-text-primary">{fmtPts(day.enemyTotalPoints)}</p>
+            </div>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t("searchPlayers")}
+              className={selectClass()}
+            />
+            <select className={selectClass()} value={side} onChange={(event) => setSide(event.target.value)}>
+              <option value="all">{t("allSides")}</option>
+              <option value="ALLY">{t("sides.ALLY")}</option>
+              <option value="ENEMY">{t("sides.ENEMY")}</option>
+            </select>
+          </div>
           {maxPts > 0 && (
             <div className="space-y-1 rounded-md border border-border-dim bg-raised px-3 py-2">
               <div className="flex items-center justify-between text-xs text-text-muted">
@@ -185,6 +160,7 @@ function DayCard({ day, isAdmin, duelId }: { day: DuelDayRow; isAdmin: boolean; 
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>{t("side")}</TableHead>
                   <TableHead>{t("memberName")}</TableHead>
                   <TableHead>{t("points")}</TableHead>
                 </TableRow>
@@ -192,13 +168,14 @@ function DayCard({ day, isAdmin, duelId }: { day: DuelDayRow; isAdmin: boolean; 
               <TableBody>
                 {visibleScores.map((score) => (
                   <TableRow key={score.id}>
+                    <TableCell>{t(`sides.${score.side}`)}</TableCell>
                     <TableCell className="font-medium text-text-primary">{score.memberName}</TableCell>
                     <TableCell>{score.points}</TableCell>
                   </TableRow>
                 ))}
                 {visibleScores.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={2} className="py-4 text-center text-text-muted">{t("noScoresInRange")}</TableCell>
+                    <TableCell colSpan={3} className="py-4 text-center text-text-muted">{t("noScoresInRange")}</TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -246,7 +223,7 @@ export function AllianceDuelDetail({ duel, isAdmin }: { duel: DuelDetailData; is
       {tab === "days" ? (
         <section className="grid gap-4 lg:grid-cols-2">
           {duel.days.map((day) => (
-            <DayCard key={day.id} day={day} isAdmin={isAdmin} duelId={duel.id} />
+            <DayCard key={day.id} day={day} duelId={duel.id} />
           ))}
         </section>
       ) : (
@@ -256,7 +233,9 @@ export function AllianceDuelDetail({ duel, isAdmin }: { duel: DuelDetailData; is
               <h2 className="text-sm font-bold text-text-primary">{t("summary")}</h2>
               <div className="flex items-center gap-2 text-xs text-text-muted">
                 {t("instanceOutcome")}
-                <InstanceOutcomeControl instanceId={duel.id} value={duel.outcome} isAdmin={isAdmin} />
+                <Badge variant={duel.outcome === "WIN" ? "success" : duel.outcome === "LOSS" ? "destructive" : "secondary"}>
+                  {duel.outcome ? t(`outcomes.${duel.outcome}`) : t("none")}
+                </Badge>
               </div>
             </div>
             <div className="grid gap-3 md:grid-cols-6">
@@ -274,6 +253,7 @@ export function AllianceDuelDetail({ duel, isAdmin }: { duel: DuelDetailData; is
 
           <div className="grid gap-4 lg:grid-cols-2">
             <SummaryList title={t("topContributors")} items={duel.summary.topContributors.map((item) => `${item.memberName}: ${item.total}`)} empty={t("emptySummary")} />
+            <SummaryList title={t("topEnemies")} items={duel.summary.topEnemies.map((item) => `${item.playerName}: ${item.total}`)} empty={t("emptySummary")} />
             <SummaryList title={t("membersNoData")} items={duel.summary.noDataMembers} empty={t("emptySummary")} />
             <SummaryList title={t("membersZeroPoints")} items={duel.summary.zeroPointMembers} empty={t("emptySummary")} />
             <div className="rounded-md border border-border-subtle bg-surface p-4">

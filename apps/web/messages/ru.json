@@ -662,7 +662,8 @@
     "status": {
       "ACTIVE": "Активен",
       "TEMP_AWAY": "Временно вне альянса",
-      "LEFT": "Покинул"
+      "LEFT": "Покинул",
+      "TRANSFERRED": "Transferred"
     },
     "nav": {
       "dashboard": "Панель",
@@ -915,7 +916,9 @@
         "invalidTarget": "Выберите корректный день события.",
         "dayLocked": "Этот день еще недоступен для загрузки.",
         "unmatchedRows": "Некоторые имена игроков не удалось сопоставить с участниками альянса.",
-        "generic": "Не удалось отправить загрузку. Попробуйте снова."
+        "generic": "Не удалось отправить загрузку. Попробуйте снова.",
+        "unresolvedOutliers": "Resolve upload issues in the admin review queue before applying this data.",
+        "uploadTimedOut": "The upload took too long to apply. Try again; if it repeats, submit it for admin review."
       }
     },
     "diff": {
@@ -930,7 +933,9 @@
         "changed": "Изменено",
         "unchanged": "Без изменений",
         "removed": "Удалено",
-        "unmatched": "Не сопоставлено"
+        "unmatched": "Не сопоставлено",
+        "duplicate": "Duplicate",
+        "resolved": "Resolved"
       }
     },
     "adminQueue": {
@@ -969,8 +974,9 @@
         "noteRequired": "Причина отклонения обязательна.",
         "notPending": "Этот запрос уже проверен.",
         "laterPhase": "Этот тип загрузки можно одобрить на следующей фазе.",
-        "unmatchedRows": "В этой загрузке дуэли есть несопоставленные имена игроков. Отклоните ее с примечанием, чтобы отправитель исправил данные.",
-        "generic": "Действие не выполнено. Попробуйте снова."
+        "unmatchedRows": "Resolve unmatched player names before approving.",
+        "generic": "Действие не выполнено. Попробуйте снова.",
+        "unresolvedOutliers": "Resolve all blocking upload issues before approving."
       }
     },
     "notifications": {
@@ -995,6 +1001,37 @@
         "UPLOAD_REJECTED": "Загрузка отклонена",
         "ACCOUNT_VERIFIED": "Аккаунт подтвержден",
         "EVENT_CREATED": "Событие создано"
+      }
+    },
+    "resolutions": {
+      "title": "Upload issue resolution",
+      "summary": "{unresolved} unresolved of {total} issue(s).",
+      "save": "Save resolutions",
+      "saved": "Resolutions saved.",
+      "saveError": "Could not save resolutions.",
+      "memberSearch": "Search members",
+      "choose": "Choose action",
+      "member": "Member",
+      "name": "Name",
+      "rowLabel": "Row {row}",
+      "blocking": "Needs action",
+      "resolved": "Resolved",
+      "types": {
+        "unmatched": "Player does not match an alliance member.",
+        "duplicate": "Duplicate uploaded player row.",
+        "absentMember": "Current member is missing from the uploaded roster."
+      },
+      "actions": {
+        "assign": "Assign to member",
+        "renameMember": "Update member name",
+        "editRow": "Edit uploaded name",
+        "createPartial": "Create partial profile",
+        "remove": "Remove uploaded row"
+      },
+      "absent": {
+        "keep": "Keep active",
+        "inactive": "Mark inactive",
+        "transferred": "Mark transferred"
       }
     }
   },
@@ -1245,6 +1282,18 @@
         "notFound": "Дуэль не найдена.",
         "hasData": "В этой дуэли уже есть загруженные данные, поэтому ее нельзя удалить.",
         "generic": "Действие не выполнено. Попробуйте снова."
+      },
+      "search": "Search",
+      "searchOpponent": "Search opponent",
+      "side": "Side",
+      "allSides": "All sides",
+      "searchPlayers": "Search players",
+      "allyPoints": "Alliance points",
+      "enemyPoints": "Enemy points",
+      "topEnemies": "Top enemy contributors",
+      "sides": {
+        "ALLY": "Alliance",
+        "ENEMY": "Enemy"
       }
     }
   },

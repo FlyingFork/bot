@@ -47,7 +47,7 @@ export default async function ReservoirRaidDetailPage({ params }: Props) {
       },
     }),
     prisma.allianceMember.findMany({
-      where: { memberStatus: { not: "LEFT" } },
+      where: { memberStatus: { notIn: ["LEFT", "TRANSFERRED"] } },
       select: { id: true, username: true },
       orderBy: { username: "asc" },
     }),

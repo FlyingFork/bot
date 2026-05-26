@@ -47,6 +47,7 @@ export function AllianceDuelList({
   const t = useTranslations("phase5.allianceDuel");
   const [status, setStatus] = useState("all");
   const [outcome, setOutcome] = useState("all");
+  const [query, setQuery] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
 
@@ -54,17 +55,22 @@ export function AllianceDuelList({
     return rows.filter((row) => {
       if (status !== "all" && row.status !== status) return false;
       if (outcome !== "all" && row.outcome !== outcome) return false;
+      if (query && !`${row.opponentName ?? ""} ${row.opponentTag ?? ""}`.toLowerCase().includes(query.toLowerCase())) return false;
       if (from && row.startDate.slice(0, 10) < from) return false;
       if (to && row.startDate.slice(0, 10) > to) return false;
       return true;
     });
-  }, [from, outcome, rows, status, to]);
+  }, [from, outcome, query, rows, status, to]);
 
   return (
     <div className="space-y-5">
       <section className="space-y-3 rounded-md border border-border-subtle bg-surface p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            <label className="col-span-2 flex flex-col gap-1 text-xs font-medium text-text-secondary sm:col-span-1">
+              {t("search")}
+              <input className={selectClass()} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("searchOpponent")} />
+            </label>
             <label className="flex flex-col gap-1 text-xs font-medium text-text-secondary">
               {t("status")}
               <select className={selectClass()} value={status} onChange={(event) => setStatus(event.target.value)}>

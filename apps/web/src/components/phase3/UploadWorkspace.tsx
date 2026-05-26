@@ -195,9 +195,10 @@ export function UploadWorkspace({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ leaderboardType, json: directJson }),
       });
-      const data = (await response.json()) as { errors?: ValidationError[] };
+      const data = (await response.json()) as { errors?: ValidationError[]; errorCode?: string };
       if (!response.ok) {
         setErrors(data.errors ?? [{ code: "json" }]);
+        if (data.errorCode) setMessage(t(`serverErrors.${data.errorCode}`));
         return;
       }
       setMessage(t("directApplied"));
@@ -209,7 +210,7 @@ export function UploadWorkspace({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 max-w-full space-y-4 overflow-x-hidden">
       <div className="flex flex-wrap gap-2">
         <Button variant={tab === "submit" ? "default" : "tab"} onClick={() => setTab("submit")}>{t("tabs.submit")}</Button>
         <Button variant={tab === "mine" ? "default" : "tab"} onClick={() => setTab("mine")}>{t("tabs.mine")}</Button>
@@ -310,18 +311,22 @@ export function UploadWorkspace({
       )}
 
       {tab === "mine" && (
-        <section className="space-y-3 rounded-md border border-border-subtle bg-surface p-4">
+        <section className="w-full min-w-0 max-w-full space-y-3 overflow-hidden rounded-md border border-border-subtle bg-surface p-3 sm:p-4">
           {submissions.length === 0 ? (
             <p className="text-sm text-text-muted">{t("noSubmissions")}</p>
           ) : submissions.map((item) => (
-            <div key={item.id} className="rounded-md border border-border-dim bg-raised p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="font-medium text-text-primary">{item.leaderboardType ? typeT(item.leaderboardType) : item.type}</p>
-                <Badge variant={item.status === "REJECTED" ? "destructive" : item.status === "APPROVED" ? "success" : "secondary"}>{item.status}</Badge>
+            <div key={item.id} className="w-full min-w-0 max-w-full overflow-hidden rounded-md border border-border-dim bg-raised p-3">
+              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
+                <p className="min-w-0 overflow-hidden break-all font-medium text-text-primary">{item.leaderboardType ? typeT(item.leaderboardType) : item.type}</p>
+                <Badge variant={item.status === "REJECTED" ? "destructive" : item.status === "APPROVED" ? "success" : "secondary"} className="max-w-28 shrink-0 overflow-hidden text-ellipsis whitespace-nowrap">{item.status}</Badge>
               </div>
-              <p className="text-xs text-text-muted">{new Date(item.createdAt).toLocaleString()}</p>
-              {item.rejectionNote && <p className="mt-2 text-sm text-cn-danger">{item.rejectionNote}</p>}
-              {item.status === "REJECTED" && <pre className="mt-2 max-h-48 overflow-auto rounded bg-base p-2 text-xs text-text-secondary">{item.payload}</pre>}
+              <p className="min-w-0 break-words text-xs text-text-muted">{new Date(item.createdAt).toLocaleString()}</p>
+              {item.rejectionNote && <p className="mt-2 min-w-0 break-all text-sm text-cn-danger">{item.rejectionNote}</p>}
+              {item.status === "REJECTED" && (
+                <pre className="block w-full min-w-0 max-w-full overflow-auto whitespace-pre-wrap break-all rounded bg-base p-2 text-xs text-text-secondary [overflow-wrap:anywhere]">
+                  {item.payload}
+                </pre>
+              )}
             </div>
           ))}
         </section>

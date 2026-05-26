@@ -21,7 +21,7 @@ export type {
   PendingChangeType,
   // NEW TYPES
   PlatformUserStatus, MemberStatus, LeaderboardType, NotificationType,
-  EventStatus, DuelOutcome, RegistrationStatus,
+  EventStatus, DuelOutcome, DuelSide, RegistrationStatus,
   MemberNameHistory, LeaderboardSnapshot, LeaderboardEntry,
   Notification, Season, AllianceDuelInstance, AllianceDuelDay,
   AllianceDuelScore, ReservoirRaidObjective,

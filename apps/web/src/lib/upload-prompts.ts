@@ -84,8 +84,9 @@ Each entry must follow this format: {{schema}}
 Return ONLY the JSON array as an embed so it's easy to copy, no extra text.`,
 
   ALLIANCE_DUEL_DAY: `Parse the attached screenshot of the Alliance Duel daily results and return a JSON array.
-Include all visible players whose alliance tag matches: {{allianceTag}}
 Each entry must follow this format: {{schema}}
+"side" is "ALLY" for our alliance players (players with tag [{{allianceTag}}]) and "ENEMY" for opponent players. If only our alliance is visible, use "ALLY".
+The names of the players don't have new lines, it's just raw text, don't include the alliance tag only for allies.
 "points" is the number of points the player scored on this duel day (plain integer).
 Return ONLY the JSON array as an embed so it's easy to copy, no extra text.`,
 
