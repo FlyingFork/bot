@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PARTICIPANT_LIMIT, RESERVIST_LIMIT } from "@/lib/phase6-constants";
 import { ObjectivesTab as ObjectivesTabImpl } from "@/components/phase6/objectives/ObjectivesTab";
 
@@ -109,6 +110,193 @@ function statusBadgeVariant(status: string) {
 // Tab 1: Registrations
 // ─────────────────────────────────────────────
 
+type ParticipantCardProps = {
+  participant: RaidParticipantRow;
+  showAssign: boolean;
+  isAdmin: boolean;
+  assigningId: string | null;
+  assignMemberId: string;
+  search: string;
+  filteredMembers: MemberOption[];
+  busy: boolean;
+  onSetAssigningId: (id: string | null) => void;
+  onSetSearch: (s: string) => void;
+  onSetAssignMemberId: (id: string) => void;
+  onAssignMember: (participantId: string) => void;
+  onDeleteRegistration: (participantId: string) => void;
+};
+
+function ParticipantCard({
+  participant,
+  showAssign,
+  isAdmin,
+  assigningId,
+  assignMemberId,
+  search,
+  filteredMembers,
+  busy,
+  onSetAssigningId,
+  onSetSearch,
+  onSetAssignMemberId,
+  onAssignMember,
+  onDeleteRegistration,
+}: ParticipantCardProps) {
+  const t = useTranslations("phase6");
+  const [pendingConfirm, setPendingConfirm] = useState(false);
+  const contact = contactLabel(participant.contactType, participant.contact);
+  const selectedMemberName = filteredMembers.find((m) => m.id === assignMemberId)?.username ?? assignMemberId;
+  return (
+    <>
+    <div className={`rounded-md border p-3 space-y-2 ${showAssign ? "border-cn-warning/40 bg-cn-warning/5" : "border-border-subtle bg-surface"}`}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold text-text-primary">{participant.username}</p>
+          {participant.memberName && participant.memberName !== participant.username && (
+            <p className="text-xs text-text-muted">{participant.memberName}</p>
+          )}
+          {contact && <p className="text-xs text-text-muted">{contact}</p>}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {participant.totalSquadPower > 0 && (
+            <Badge variant="secondary">{formatPower(participant.totalSquadPower)}</Badge>
+          )}
+          {participant.raidReliability && (
+            <Badge
+              variant={
+                participant.raidReliability.score >= 75
+                  ? "success"
+                  : participant.raidReliability.score >= 45
+                    ? "warning"
+                    : "destructive"
+              }
+              title={`${participant.raidReliability.participated}/${participant.raidReliability.total} raids`}
+            >
+              {participant.raidReliability.score}%
+            </Badge>
+          )}
+          <Badge variant={statusBadgeVariant(participant.registrationStatus)}>
+            {t(`reservoirRaid.registrations.statusValues.${participant.registrationStatus}`)}
+          </Badge>
+        </div>
+      </div>
+
+      {participant.squadPowers.length > 0 && (
+        <div className="flex flex-wrap gap-1 items-center">
+          <Zap className="h-3 w-3 text-text-muted shrink-0" />
+          {participant.squadPowers.map((sq) => (
+            <span key={sq.squadIndex} className="rounded bg-raised px-1.5 py-0.5 text-[10px] text-text-muted">
+              S{sq.squadIndex}: {formatPower(sq.power)}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {participant.memberId && (
+        <div className="flex flex-wrap gap-1">
+          <span className="flex items-center gap-1 rounded bg-raised px-1.5 py-0.5 text-[10px] text-text-muted">
+            <Droplet className="h-2.5 w-2.5 text-sky-400 shrink-0" />
+            {t("reservoirRaid.lastWater")}:{" "}
+            {participant.lastWaterCollected !== null
+              ? participant.lastWaterCollected.toLocaleString()
+              : t("common.unknown")}
+          </span>
+          <span className="flex items-center gap-1 rounded bg-raised px-1.5 py-0.5 text-[10px] text-text-muted">
+            <Droplets className="h-2.5 w-2.5 text-sky-400 shrink-0" />
+            {t("reservoirRaid.totalWater")}:{" "}
+            {participant.totalWaterCollected !== null
+              ? formatWater(participant.totalWaterCollected)
+              : t("common.unknown")}
+          </span>
+        </div>
+      )}
+
+      {isAdmin && showAssign && (
+        <div>
+          {assigningId === participant.id ? (
+            <div className="space-y-2">
+              <Input
+                placeholder={t("reservoirRaid.registrations.searching")}
+                value={search}
+                onChange={(e) => onSetSearch(e.target.value)}
+                className="text-xs"
+              />
+              <div className="max-h-40 overflow-auto rounded border border-border-dim bg-raised">
+                {filteredMembers.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    className="w-full px-2 py-1.5 text-left text-xs text-text-primary hover:bg-surface"
+                    onClick={() => onSetAssignMemberId(m.id)}
+                  >
+                    {m.username}
+                    {assignMemberId === m.id && " ✓"}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" disabled={!assignMemberId || busy} onClick={() => setPendingConfirm(true)}>
+                  {t("reservoirRaid.registrations.assign")}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => { onSetAssigningId(null); onSetSearch(""); onSetAssignMemberId(""); }}>
+                  {t("common.cancel")}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <Button size="sm" variant="secondary" onClick={() => onSetAssigningId(participant.id)}>
+                <UserCheck />
+                {t("reservoirRaid.registrations.assignMember")}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => onDeleteRegistration(participant.id)} disabled={busy}>
+                <Trash2 />
+                {t("reservoirRaid.registrations.delete")}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {isAdmin && !showAssign && (
+        <Button size="sm" variant="ghost" onClick={() => onDeleteRegistration(participant.id)} disabled={busy}>
+          <Trash2 />
+          {t("reservoirRaid.registrations.delete")}
+        </Button>
+      )}
+    </div>
+
+    <Dialog open={pendingConfirm} onOpenChange={(next) => !next && setPendingConfirm(false)}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t("reservoirRaid.registrations.assignConfirmTitle")}</DialogTitle>
+          <DialogDescription>
+            {t("reservoirRaid.registrations.assignConfirmDescription", {
+              member: selectedMemberName,
+              username: participant.username,
+            })}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="flex-col-reverse sm:flex-row">
+          <Button variant="ghost" onClick={() => setPendingConfirm(false)} className="w-full sm:w-auto">
+            {t("common.cancel")}
+          </Button>
+          <Button
+            disabled={busy}
+            onClick={() => {
+              setPendingConfirm(false);
+              onAssignMember(participant.id);
+            }}
+            className="w-full sm:w-auto"
+          >
+            {t("reservoirRaid.registrations.assign")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
+  );
+}
+
 function RegistrationsTab({
   planId,
   participants,
@@ -166,129 +354,6 @@ function RegistrationsTab({
     [members, search],
   );
 
-  function ParticipantCard({ participant, showAssign }: { participant: RaidParticipantRow; showAssign: boolean }) {
-    const contact = contactLabel(participant.contactType, participant.contact);
-    return (
-      <div className={`rounded-md border p-3 space-y-2 ${showAssign ? "border-cn-warning/40 bg-cn-warning/5" : "border-border-subtle bg-surface"}`}>
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <p className="text-sm font-semibold text-text-primary">{participant.username}</p>
-            {participant.memberName && participant.memberName !== participant.username && (
-              <p className="text-xs text-text-muted">{participant.memberName}</p>
-            )}
-            {contact && <p className="text-xs text-text-muted">{contact}</p>}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {participant.totalSquadPower > 0 && (
-              <Badge variant="secondary">{formatPower(participant.totalSquadPower)}</Badge>
-            )}
-            {participant.raidReliability && (
-              <Badge
-                variant={
-                  participant.raidReliability.score >= 75
-                    ? "success"
-                    : participant.raidReliability.score >= 45
-                      ? "warning"
-                      : "destructive"
-                }
-                title={`${participant.raidReliability.participated}/${participant.raidReliability.total} raids`}
-              >
-                {participant.raidReliability.score}%
-              </Badge>
-            )}
-            <Badge variant={statusBadgeVariant(participant.registrationStatus)}>
-              {t(`reservoirRaid.registrations.statusValues.${participant.registrationStatus}`)}
-            </Badge>
-          </div>
-        </div>
-
-        {participant.squadPowers.length > 0 && (
-          <div className="flex flex-wrap gap-1 items-center">
-            <Zap className="h-3 w-3 text-text-muted shrink-0" />
-            {participant.squadPowers.map((sq) => (
-              <span key={sq.squadIndex} className="rounded bg-raised px-1.5 py-0.5 text-[10px] text-text-muted">
-                S{sq.squadIndex}: {formatPower(sq.power)}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {participant.memberId && (
-          <div className="flex flex-wrap gap-1">
-            <span className="flex items-center gap-1 rounded bg-raised px-1.5 py-0.5 text-[10px] text-text-muted">
-              <Droplet className="h-2.5 w-2.5 text-sky-400 shrink-0" />
-              {t("reservoirRaid.lastWater")}:{" "}
-              {participant.lastWaterCollected !== null
-                ? participant.lastWaterCollected.toLocaleString()
-                : t("common.unknown")}
-            </span>
-            <span className="flex items-center gap-1 rounded bg-raised px-1.5 py-0.5 text-[10px] text-text-muted">
-              <Droplets className="h-2.5 w-2.5 text-sky-400 shrink-0" />
-              {t("reservoirRaid.totalWater")}:{" "}
-              {participant.totalWaterCollected !== null
-                ? formatWater(participant.totalWaterCollected)
-                : t("common.unknown")}
-            </span>
-          </div>
-        )}
-
-        {isAdmin && showAssign && (
-          <div>
-            {assigningId === participant.id ? (
-              <div className="space-y-2">
-                <Input
-                  placeholder={t("reservoirRaid.registrations.searching")}
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="text-xs"
-                />
-                <div className="max-h-40 overflow-auto rounded border border-border-dim bg-raised">
-                  {filteredMembers.map((m) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      className="w-full px-2 py-1.5 text-left text-xs text-text-primary hover:bg-surface"
-                      onClick={() => setAssignMemberId(m.id)}
-                    >
-                      {m.username}
-                      {assignMemberId === m.id && " ✓"}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" disabled={!assignMemberId || busy} onClick={() => assignMember(participant.id)}>
-                    {t("reservoirRaid.registrations.assign")}
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => { setAssigningId(null); setSearch(""); setAssignMemberId(""); }}>
-                    {t("common.cancel")}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex gap-2">
-                <Button size="sm" variant="secondary" onClick={() => setAssigningId(participant.id)}>
-                  <UserCheck />
-                  {t("reservoirRaid.registrations.assignMember")}
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => deleteRegistration(participant.id)} disabled={busy}>
-                  <Trash2 />
-                  {t("reservoirRaid.registrations.delete")}
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {isAdmin && !showAssign && (
-          <Button size="sm" variant="ghost" onClick={() => deleteRegistration(participant.id)} disabled={busy}>
-            <Trash2 />
-            {t("reservoirRaid.registrations.delete")}
-          </Button>
-        )}
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
       {showWarning && (
@@ -303,7 +368,24 @@ function RegistrationsTab({
             {t("reservoirRaid.registrations.matched")} ({matched.length})
           </h3>
           <div className="grid gap-2 md:grid-cols-2">
-            {matched.map((p) => <ParticipantCard key={p.id} participant={p} showAssign={false} />)}
+            {matched.map((p) => (
+              <ParticipantCard
+                key={p.id}
+                participant={p}
+                showAssign={false}
+                isAdmin={isAdmin}
+                assigningId={assigningId}
+                assignMemberId={assignMemberId}
+                search={search}
+                filteredMembers={filteredMembers}
+                busy={busy}
+                onSetAssigningId={setAssigningId}
+                onSetSearch={setSearch}
+                onSetAssignMemberId={setAssignMemberId}
+                onAssignMember={assignMember}
+                onDeleteRegistration={deleteRegistration}
+              />
+            ))}
           </div>
         </section>
       )}
@@ -314,7 +396,24 @@ function RegistrationsTab({
             {t("reservoirRaid.registrations.unmatched")} ({unmatched.length})
           </h3>
           <div className="grid gap-2 md:grid-cols-2">
-            {unmatched.map((p) => <ParticipantCard key={p.id} participant={p} showAssign={true} />)}
+            {unmatched.map((p) => (
+              <ParticipantCard
+                key={p.id}
+                participant={p}
+                showAssign={true}
+                isAdmin={isAdmin}
+                assigningId={assigningId}
+                assignMemberId={assignMemberId}
+                search={search}
+                filteredMembers={filteredMembers}
+                busy={busy}
+                onSetAssigningId={setAssigningId}
+                onSetSearch={setSearch}
+                onSetAssignMemberId={setAssignMemberId}
+                onAssignMember={assignMember}
+                onDeleteRegistration={deleteRegistration}
+              />
+            ))}
           </div>
         </section>
       )}

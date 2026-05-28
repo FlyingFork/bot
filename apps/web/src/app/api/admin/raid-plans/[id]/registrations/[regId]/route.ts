@@ -36,15 +36,48 @@ export async function PATCH(request: NextRequest, context: Params) {
         : null;
       if (body.memberId && !member) return NextResponse.json({ errorCode: "memberNotFound" }, { status: 404 });
       if (member) {
-        const nameConflict = await prisma.reservoirRaidParticipant.findFirst({
+        const existingParticipant = await prisma.reservoirRaidParticipant.findFirst({
           where: {
             planId,
-            username: member.username,
             id: { not: regId },
+            OR: [{ memberId: member.id }, { username: member.username }],
           },
-          select: { id: true },
         });
-        if (nameConflict) return NextResponse.json({ errorCode: "duplicateParticipantName" }, { status: 409 });
+
+        if (existingParticipant) {
+          const unmatchedPowers = await prisma.reservoirRaidSquadPower.findMany({
+            where: { participantId: regId },
+          });
+
+          await prisma.$transaction(async (tx) => {
+            for (const sp of unmatchedPowers) {
+              await tx.reservoirRaidSquadPower.upsert({
+                where: { participantId_squadIndex: { participantId: existingParticipant.id, squadIndex: sp.squadIndex } },
+                create: { participantId: existingParticipant.id, memberId: member.id, squadIndex: sp.squadIndex, power: sp.power },
+                update: { power: sp.power },
+              });
+            }
+            if (!existingParticipant.contactType && participant.contactType) {
+              await tx.reservoirRaidParticipant.update({
+                where: { id: existingParticipant.id },
+                data: { contactType: participant.contactType, contact: participant.contact },
+              });
+            }
+            await tx.reservoirRaidParticipant.delete({ where: { id: regId } });
+          });
+
+          await createAuditLog(
+            actor.id,
+            "RAID_PARTICIPANT_MERGED",
+            "ReservoirRaidParticipant",
+            regId,
+            pickSnapshot(jsonSafe(participant)),
+            pickSnapshot(jsonSafe(existingParticipant)),
+          );
+
+          return NextResponse.json({ ok: true });
+        }
+
         data.username = member.username;
       }
       data.memberId = body.memberId ?? null;
