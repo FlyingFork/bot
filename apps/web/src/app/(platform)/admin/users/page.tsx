@@ -118,7 +118,35 @@ export default async function AdminUsersPage({ searchParams }: Props) {
         </div>
       </form>
 
-      <div className="rounded-md border border-border-subtle bg-surface">
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-2">
+        {users.length === 0 ? (
+          <p className="py-8 text-center text-sm text-text-muted">{t("empty")}</p>
+        ) : users.map((item) => (
+          <div key={item.id} className="rounded-md border border-border-dim bg-raised p-3 space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="font-medium text-sm text-text-primary truncate">{item.username ?? item.name}</div>
+                <div className="text-xs text-text-muted truncate">{item.email}</div>
+              </div>
+              <Link href={`/admin/users/${item.id}`} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}>{common("view")}</Link>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              <Badge variant={statusVariant(item.platformStatus)}>{item.platformStatus}</Badge>
+              {item.banned && <Badge variant="destructive">{t("banned")}</Badge>}
+            </div>
+            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-text-muted">
+              <span>{t("role")}: {roleLabel(item.role, common("none"), rolesT("admin"))}</span>
+              <span>{t("sessions")}: {item._count.sessions}</span>
+              <span>{t("lastSeen")}: {formatDate(item.lastSeenAt, t("neverSeen"))}</span>
+              {item.allianceMember && <span>{t("linkedMember")}: {item.allianceMember.username}</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block rounded-md border border-border-subtle bg-surface">
         <Table>
           <TableHeader>
             <TableRow>

@@ -106,7 +106,32 @@ export function UploadRequestsTable({ requests }: { requests: RequestRow[] }) {
         </Button>
       </div>
 
-      <div className="rounded-md border border-border-subtle bg-surface">
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-2">
+        {requests.map((request) => (
+          <div key={request.id} className="rounded-md border border-border-dim bg-raised p-3 space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-start gap-2">
+                <Checkbox checked={selected.includes(request.id)} onCheckedChange={(checked) => toggle(request.id, Boolean(checked))} />
+                <div className="min-w-0">
+                  <div className="font-medium text-sm text-text-primary">{request.submitter.username ?? request.submitter.name ?? "-"}</div>
+                  <div className="text-xs text-text-muted">{new Date(request.createdAt).toLocaleString()}</div>
+                </div>
+              </div>
+              <Button variant="ghost" size="sm" render={<Link href={`/admin/upload-requests/${request.id}`} />}>
+                {t("review")}
+              </Button>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-text-muted">
+              <Badge variant="secondary">{uploadTypeLabel(request.leaderboardType, request.type, typeT, uploadT)}</Badge>
+              <span className="truncate">{summaryText(request.diffData?.summary)}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block rounded-md border border-border-subtle bg-surface">
         <Table>
           <TableHeader>
             <TableRow>

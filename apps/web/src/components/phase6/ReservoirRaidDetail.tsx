@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PARTICIPANT_LIMIT, RESERVIST_LIMIT } from "@/lib/phase6-constants";
 import { ObjectivesTab as ObjectivesTabImpl } from "@/components/phase6/objectives/ObjectivesTab";
+import { MemberObjectivesMap } from "@/components/phase6/objectives/MemberObjectivesMap";
 import { getObjectiveName, type ObjectiveLang } from "@/lib/raid-objectives";
 
 // ─────────────────────────────────────────────
@@ -822,6 +823,17 @@ function MemberRaidView({
               {t("reservoirRaid.registerNow")}
             </Button>
           )}
+        </div>
+      )}
+
+      {myParticipant && (
+        <div className="space-y-2">
+          <h2 className="text-sm font-semibold text-text-primary">{t("reservoirRaid.tabs.objectives")}</h2>
+          <MemberObjectivesMap
+            objectives={raid.objectives}
+            planLang={planLang}
+            myObjectiveId={myObjective?.id ?? null}
+          />
         </div>
       )}
 

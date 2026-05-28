@@ -86,7 +86,68 @@ export function VerificationsPanel({
   return (
     <div className="space-y-3">
       {error && <p className="text-sm text-cn-danger">{error}</p>}
-      <div className="rounded-md border border-border-subtle bg-surface">
+
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-3">
+        {users.map((user) => {
+          const selection = selectionFor(user);
+          const filteredMembers = availableMembers
+            .filter((member) => member.username.toLowerCase().includes(selection.query.toLowerCase()))
+            .slice(0, 30);
+          return (
+            <div key={user.id} className="rounded-md border border-border-dim bg-raised p-3 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="font-medium text-sm text-text-primary">{user.username ?? common("none")}</div>
+                  <div className="text-xs text-text-muted">{formatDate(user.createdAt)}</div>
+                </div>
+              </div>
+              <div className="text-xs text-text-muted">{t("ingameName")}: {user.name}</div>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-text-secondary">{t("allianceMember")}</p>
+                <Input
+                  value={selection.query}
+                  onChange={(event) => update(user.id, { query: event.target.value })}
+                  placeholder={t("searchMembers")}
+                />
+                <select
+                  value={selection.memberId}
+                  onChange={(event) => update(user.id, { memberId: event.target.value })}
+                  className="h-8 w-full rounded-[4px] border border-border-default bg-raised px-2 text-xs text-text-primary"
+                >
+                  <option value="">{t("selectMember")}</option>
+                  {filteredMembers.map((member) => (
+                    <option key={member.id} value={member.id}>{member.username}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-text-secondary">{t("role")}</p>
+                {user.role === "admin" ? (
+                  <span className="text-sm text-text-primary">{roleLabel(user.role, common("none"), rolesT("admin"))}</span>
+                ) : (
+                  <select
+                    value={selection.role}
+                    onChange={(event) => update(user.id, { role: event.target.value })}
+                    className="h-8 w-full rounded-[4px] border border-border-default bg-raised px-2 text-xs text-text-primary"
+                  >
+                    {ROLES.map((role) => (
+                      <option key={role} value={role}>{role.toUpperCase()}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              <Button size="sm" onClick={() => approve(user)} disabled={busyId === user.id}>
+                <ShieldCheck />
+                {busyId === user.id ? t("verifying") : t("verify")}
+              </Button>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block rounded-md border border-border-subtle bg-surface">
         <Table>
           <TableHeader>
             <TableRow>

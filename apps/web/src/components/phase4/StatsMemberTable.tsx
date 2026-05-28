@@ -109,7 +109,40 @@ export function StatsMemberTable({ members }: { members: StatsMemberRow[] }) {
         <ExportButton baseUrl="/api/export?type=stats-members" />
       </div>
 
-      <div className="overflow-x-auto">
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-2">
+        {rows.length === 0 ? (
+          <p className="py-8 text-center text-sm text-text-muted">{t("noMembers")}</p>
+        ) : rows.map((member) => (
+          <div key={member.id} className="rounded-md border border-border-dim bg-raised p-3 space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <Link href={`/members/${member.id}`} className="font-medium text-sm text-cn-cyan hover:underline">{member.username}</Link>
+                <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                  {member.rank && <span className="text-xs text-text-muted">{member.rank}</span>}
+                  <Badge variant="secondary">{statusT(member.status)}</Badge>
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <div
+                  className="text-sm font-medium text-text-primary"
+                  title={member.power ? formatPowerFull(BigInt(member.power)) : undefined}
+                >
+                  {member.power ? formatPower(BigInt(member.power)) : common("none")}
+                </div>
+                <div className="text-xs text-text-muted">{t("contributionScore")}: {member.contributionScore}</div>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-text-muted">
+              <span>{t("lastDuelActivity")}: {dateLabel(member.lastDuelActivity) || common("none")}</span>
+              <span>{t("lastRaidParticipation")}: {dateLabel(member.lastRaidParticipation) || common("none")}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block">
         <Table>
           <TableHeader>
             <TableRow>
