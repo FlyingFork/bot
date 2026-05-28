@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/server-auth";
 import { hasRole } from "@/lib/roles";
 import { formatPower } from "@/lib/power";
 import { cn } from "@/lib/utils";
-import { getContributionScores, getUploadHealth, latestPowerFromEntryData } from "@/lib/phase4";
+import { getContributionScores, getUploadHealth, latestPowerFromEntryData, type ContributionScore } from "@/lib/phase4";
 import { UploadHealthChips } from "@/components/phase4/UploadHealthChips";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
@@ -15,6 +15,7 @@ export default async function StatsPage() {
   const t = await getTranslations("phase4.stats");
   const user = await getCurrentUser();
   const isR4Plus = hasRole(user?.role, "r4");
+  const allianceMemberId = user?.allianceMemberId ?? null;
   const now = new Date();
   const sevenDaysAgo = new Date(now.getTime() - 7 * 86_400_000);
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 86_400_000);
@@ -119,6 +120,25 @@ export default async function StatsPage() {
     }));
   }
 
+  // Personal stats for R1-R3 members
+  let myPower: number | null = null;
+  let myContribution: ContributionScore | null = null;
+  if (!isR4Plus && allianceMemberId) {
+    const [ownMember, scores] = await Promise.all([
+      prisma.allianceMember.findUnique({
+        where: { id: allianceMemberId },
+        select: { currentPower: true },
+      }),
+      getContributionScores([allianceMemberId]),
+    ]);
+    myPower = ownMember?.currentPower != null ? Number(ownMember.currentPower) : null;
+    myContribution = scores.get(allianceMemberId) ?? null;
+  }
+
+  const powerDeltaPct = myPower !== null && averagePower > 0
+    ? ((myPower - averagePower) / averagePower) * 100
+    : null;
+
   return (
     <div className="space-y-6">
       <PageHeader title={t("title")} subtitle={t("subtitle")} />
@@ -189,6 +209,48 @@ export default async function StatsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {!isR4Plus && (myPower !== null || myContribution) && (
+        <Card>
+          <CardHeader className="border-b pb-3">
+            <CardTitle>{t("yourStats")}</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {myPower !== null && (
+                <StatCard
+                  label={t("yourPower")}
+                  value={formatPower(myPower)}
+                  delta={
+                    powerDeltaPct !== null
+                      ? powerDeltaPct >= 0
+                        ? t("powerAboveAverage", { delta: powerDeltaPct.toFixed(1) })
+                        : t("powerBelowAverage", { delta: Math.abs(powerDeltaPct).toFixed(1) })
+                      : undefined
+                  }
+                />
+              )}
+              {myContribution && (
+                <>
+                  <StatCard label={t("contributionScore")} value={String(myContribution.score)} />
+                  {myContribution.duelTotal > 0 && (
+                    <StatCard
+                      label={t("duelParticipation")}
+                      value={`${myContribution.duelParticipated}/${myContribution.duelTotal}`}
+                    />
+                  )}
+                  {myContribution.raidTotal > 0 && (
+                    <StatCard
+                      label={t("raidParticipation")}
+                      value={`${myContribution.raidParticipated}/${myContribution.raidTotal}`}
+                    />
+                  )}
+                </>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {isR4Plus && health && (
         <>

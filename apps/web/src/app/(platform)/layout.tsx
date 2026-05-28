@@ -45,7 +45,7 @@ export default async function PlatformLayout({
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar role={role} allianceName={allianceName} />
+      <Sidebar role={role} allianceName={allianceName} unreadCount={unreadCount} />
 
       <div className="flex flex-1 flex-col min-h-0">
         <Navbar
@@ -63,7 +63,7 @@ export default async function PlatformLayout({
         </main>
       </div>
 
-      <BottomNav role={role} />
+      <BottomNav role={role} unreadCount={unreadCount} />
     </div>
   );
 }

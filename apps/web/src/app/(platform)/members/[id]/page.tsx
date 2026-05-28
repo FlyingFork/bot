@@ -39,6 +39,7 @@ export default async function MemberProfilePage({ params, searchParams }: Props)
   const { id } = await params;
   const { compare } = await searchParams;
   const canViewFull = hasRole(user?.role, "r4");
+  const isOwnProfile = user?.allianceMemberId === id;
 
   if (!canViewFull && user?.allianceMemberId !== id) notFound();
 
@@ -208,54 +209,50 @@ export default async function MemberProfilePage({ params, searchParams }: Props)
         </div>
       </section>
 
-      {canViewFull && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <section className="rounded-md border border-border-subtle bg-surface p-4 space-y-3">
-            <h2 className="text-sm font-bold text-text-primary">{t("nameHistory")}</h2>
-            {serializedMember.nameHistory.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t("pastName")}</TableHead>
-                    <TableHead>{t("changed")}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {serializedMember.nameHistory.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>{item.name}</TableCell>
-                      <TableCell>{formatDate(item.changedAt)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            ) : (
-              <EmptyState>{t("noNameChanges")}</EmptyState>
-            )}
-          </section>
+      {(canViewFull || isOwnProfile) && serializedMember.nameHistory.length > 0 && (
+        <section className="rounded-md border border-border-subtle bg-surface p-4 space-y-3">
+          <h2 className="text-sm font-bold text-text-primary">{t("nameHistory")}</h2>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("pastName")}</TableHead>
+                <TableHead>{t("changed")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {serializedMember.nameHistory.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell>{item.name}</TableCell>
+                  <TableCell>{formatDate(item.changedAt)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </section>
+      )}
 
-          <section className="rounded-md border border-border-subtle bg-surface p-4 space-y-3">
-            <h2 className="text-sm font-bold text-text-primary">{t("linkedAccountSection")}</h2>
-            {member.user ? (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-text-muted">{profileT("username")}</p>
-                  <p className="text-sm text-text-primary">{member.user.username ?? member.user.name}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-text-muted">{profileT("role")}</p>
-                  <p className="text-sm text-text-primary">{roleLabel(member.user.role, common("none"), rolesT("admin"))}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-text-muted">{t("accountStatus")}</p>
-                  <p className="text-sm text-text-primary">{member.user.platformStatus}</p>
-                </div>
+      {canViewFull && (
+        <section className="rounded-md border border-border-subtle bg-surface p-4 space-y-3">
+          <h2 className="text-sm font-bold text-text-primary">{t("linkedAccountSection")}</h2>
+          {member.user ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-text-muted">{profileT("username")}</p>
+                <p className="text-sm text-text-primary">{member.user.username ?? member.user.name}</p>
               </div>
-            ) : (
-              <EmptyState>{t("noLinkedAccount")}</EmptyState>
-            )}
-          </section>
-        </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-text-muted">{profileT("role")}</p>
+                <p className="text-sm text-text-primary">{roleLabel(member.user.role, common("none"), rolesT("admin"))}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-text-muted">{t("accountStatus")}</p>
+                <p className="text-sm text-text-primary">{member.user.platformStatus}</p>
+              </div>
+            </div>
+          ) : (
+            <EmptyState>{t("noLinkedAccount")}</EmptyState>
+          )}
+        </section>
       )}
 
       {canViewFull && (

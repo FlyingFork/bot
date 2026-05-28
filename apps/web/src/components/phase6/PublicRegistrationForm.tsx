@@ -64,10 +64,24 @@ export type PublicRaidInfo = {
   registrationOpen: boolean;
 };
 
-export function PublicRegistrationForm({ plan }: { plan: PublicRaidInfo }) {
+export type PublicRegistrationPrefill = {
+  ingameName?: string;
+  squad1?: string;
+};
+
+export function PublicRegistrationForm({
+  plan,
+  prefill,
+}: {
+  plan: PublicRaidInfo;
+  prefill?: PublicRegistrationPrefill;
+}) {
   const t = useTranslations("phase6.registration");
-  const [ingameName, setIngameName] = useState("");
-  const [squadPowers, setSquadPowers] = useState<string[]>(["", "", "", "", ""]);
+  const [ingameName, setIngameName] = useState(prefill?.ingameName ?? "");
+  const [squadPowers, setSquadPowers] = useState<string[]>([
+    prefill?.squad1 ?? "",
+    "", "", "", "",
+  ]);
   const [squadPowerErrors, setSquadPowerErrors] = useState<(string | null)[]>([
     null, null, null, null, null,
   ]);

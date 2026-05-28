@@ -4,7 +4,8 @@ import { getTranslations } from "next-intl/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@tiles-survive/database";
 import { hasRole } from "@/lib/roles";
-import { getUploadHealth } from "@/lib/phase4";
+import { getUploadHealth, getContributionScores, type ContributionScore } from "@/lib/phase4";
+import { formatPower } from "@/lib/power";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +34,7 @@ export default async function DashboardPage() {
     notifications,
     ownMember,
     health,
+    contributionMap,
   ] = await Promise.all([
     isR4Plus ? prisma.pendingChange.count({ where: { status: "PENDING" } }) : Promise.resolve(0),
     isAdmin ? prisma.user.count({ where: { platformStatus: "PENDING" } }) : Promise.resolve(0),
@@ -44,7 +46,7 @@ export default async function DashboardPage() {
     prisma.reservoirRaidPlan.findFirst({
       where: { status: "ACTIVE" },
       orderBy: { startsAt: "asc" },
-      select: { id: true, startsAt: true, raidDate: true },
+      select: { id: true, startsAt: true, raidDate: true, registrationOpen: true },
     }),
     prisma.notification.findMany({
       where: { userId: user.id as string, dismissedAt: null },
@@ -54,11 +56,16 @@ export default async function DashboardPage() {
     allianceMemberId
       ? prisma.allianceMember.findUnique({
           where: { id: allianceMemberId },
-          select: { id: true, username: true, currentRank: true },
+          select: { id: true, username: true, currentRank: true, currentPower: true },
         })
       : Promise.resolve(null),
     isR4Plus ? getUploadHealth() : Promise.resolve([]),
+    !isR4Plus && allianceMemberId
+      ? getContributionScores([allianceMemberId])
+      : Promise.resolve(new Map<string, ContributionScore>()),
   ]);
+
+  const myContribution = allianceMemberId ? contributionMap.get(allianceMemberId) : undefined;
 
   return (
     <div className="space-y-6">
@@ -94,10 +101,46 @@ export default async function DashboardPage() {
           </Card>
         </>
       ) : (
-        <div className="grid gap-3 xl:gap-4 md:grid-cols-2">
-          <StatCard label={t("member")} value={ownMember?.username ?? t("unlinked")} delta={ownMember?.currentRank ?? t("noRank")} />
-          <StatCard label={t("contributionScore")} value={common("noDataYet")} delta={t("phase4")} />
-        </div>
+        <>
+          <div className="grid gap-3 xl:gap-4 md:grid-cols-3">
+            <StatCard
+              label={t("member")}
+              value={ownMember?.username ?? t("unlinked")}
+              delta={ownMember?.currentRank ?? t("noRank")}
+            />
+            <StatCard
+              label={t("power")}
+              value={ownMember?.currentPower != null ? formatPower(ownMember.currentPower) : common("noDataYet")}
+            />
+            <StatCard
+              label={t("contributionScore")}
+              value={myContribution ? String(myContribution.score) : common("noDataYet")}
+            />
+          </div>
+
+          {myContribution && (myContribution.duelTotal > 0 || myContribution.raidTotal > 0) && (
+            <div className="grid gap-3 md:grid-cols-2">
+              <StatCard
+                label={t("duelParticipation")}
+                value={`${myContribution.duelParticipated}/${myContribution.duelTotal}`}
+              />
+              <StatCard
+                label={t("raidParticipation")}
+                value={`${myContribution.raidParticipated}/${myContribution.raidTotal}`}
+              />
+            </div>
+          )}
+
+          {raid?.registrationOpen && (
+            <Link
+              href={`/events/reservoir-raid/${raid.id}`}
+              className="block rounded-lg border border-gold-border bg-surface-2 p-3 hover:border-gold transition-colors"
+            >
+              <p className="font-medium text-gold">{t("raidRegistrationOpen")}</p>
+              <p className="text-xs text-muted mt-0.5">{t("raidRegistrationCta")}</p>
+            </Link>
+          )}
+        </>
       )}
 
       <section className="grid gap-4 lg:grid-cols-2">
@@ -106,19 +149,21 @@ export default async function DashboardPage() {
             <CardTitle>{t("upcomingEvents")}</CardTitle>
           </CardHeader>
           <CardContent className="pt-3 space-y-2">
-            {duel ? (
+            {duel && (
               <Link href={`/events/alliance-duel/${duel.id}`} className="block rounded-lg border border-border-line bg-surface-2 p-3 hover:border-gold-border transition-colors">
                 <p className="font-medium text-text">{t("allianceDuel")}</p>
                 <p className="text-xs text-muted mt-0.5">
                   {duel.opponentName ?? duel.opponentTag ?? t("opponentPending")} · <TimeDisplay date={duel.startDate} />
                 </p>
               </Link>
-            ) : raid ? (
+            )}
+            {raid && (
               <Link href={`/events/reservoir-raid/${raid.id}`} className="block rounded-lg border border-border-line bg-surface-2 p-3 hover:border-gold-border transition-colors">
                 <p className="font-medium text-text">{t("reservoirRaid")}</p>
                 <p className="text-xs text-muted mt-0.5"><TimeDisplay date={raid.startsAt} /></p>
               </Link>
-            ) : (
+            )}
+            {!duel && !raid && (
               <p className="text-sm text-muted">{t("noActiveEvents")}</p>
             )}
           </CardContent>

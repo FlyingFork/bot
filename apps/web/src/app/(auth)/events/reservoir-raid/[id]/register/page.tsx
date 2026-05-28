@@ -1,13 +1,35 @@
 import { getTranslations } from "next-intl/server";
 import { prisma } from "@tiles-survive/database";
 import { isRaidDateReached } from "@/lib/phase6";
-import { PublicRegistrationForm, type PublicRaidInfo } from "@/components/phase6/PublicRegistrationForm";
+import {
+  PublicRegistrationForm,
+  type PublicRaidInfo,
+  type PublicRegistrationPrefill,
+} from "@/components/phase6/PublicRegistrationForm";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
-type Props = { params: Promise<{ id: string }> };
+function formatForForm(n: number): string {
+  if (n >= 1_000_000) {
+    const m = n / 1_000_000;
+    const s = Number.isInteger(m) ? String(m) : m.toFixed(2).replace(/\.?0+$/, "");
+    return `${s}M`;
+  }
+  if (n >= 1_000) {
+    const k = n / 1_000;
+    const s = Number.isInteger(k) ? String(k) : k.toFixed(2).replace(/\.?0+$/, "");
+    return `${s}K`;
+  }
+  return String(n);
+}
 
-export default async function PublicRegistrationPage({ params }: Props) {
+type Props = {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function PublicRegistrationPage({ params, searchParams }: Props) {
   const { id: publicToken } = await params;
+  const query = await searchParams;
   const t = await getTranslations("phase6.registration");
 
   let plan = await prisma.reservoirRaidPlan.findUnique({
@@ -46,6 +68,13 @@ export default async function PublicRegistrationPage({ params }: Props) {
     registrationOpen: plan.registrationOpen,
   };
 
+  const prefillName = typeof query.name === "string" ? query.name : undefined;
+  const s1Raw = typeof query.s1 === "string" ? Number(query.s1) : NaN;
+  const prefill: PublicRegistrationPrefill = {
+    ingameName: prefillName,
+    squad1: !isNaN(s1Raw) && s1Raw > 0 ? formatForForm(s1Raw) : undefined,
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center p-4 bg-background">
       <div className="w-full max-w-md space-y-4">
@@ -53,7 +82,7 @@ export default async function PublicRegistrationPage({ params }: Props) {
           <h1 className="text-xl font-extrabold text-text-primary">{t("title")}</h1>
           <LanguageSwitcher />
         </div>
-        <PublicRegistrationForm plan={info} />
+        <PublicRegistrationForm plan={info} prefill={prefill} />
       </div>
     </div>
   );

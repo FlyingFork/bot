@@ -724,7 +724,12 @@
       "noActiveEvents": "Henüz aktif etkinlik yok.",
       "recentNotifications": "Son bildirimler",
       "viewAll": "Tümünü gör",
-      "noNotifications": "Henüz bildirim yok."
+      "noNotifications": "Henüz bildirim yok.",
+      "power": "Güç",
+      "duelParticipation": "Düello katılımı",
+      "raidParticipation": "Baskın katılımı",
+      "raidRegistrationOpen": "Baskın kaydı açık!",
+      "raidRegistrationCta": "Yaklaşan Rezervuar Baskını'nı görüntüleyin ve kaydolun."
     },
     "profile": {
       "title": "Profil",
@@ -1202,7 +1207,13 @@
       "duelMomentumHint": "Son 5 sonuç — eskiden yeniye",
       "noDuelHistory": "Henüz tamamlanmış düello yok",
       "raidYieldTitle": "Son baskın suyu",
-      "raidYieldVsPrevious": "önceki baskına kıyasla"
+      "raidYieldVsPrevious": "önceki baskına kıyasla",
+      "yourStats": "İstatistikleriniz",
+      "yourPower": "Gücünüz",
+      "powerAboveAverage": "Ortalamadan +{delta}% yüksek",
+      "powerBelowAverage": "Ortalamadan {delta}% düşük",
+      "duelParticipation": "Düello katılımı",
+      "raidParticipation": "Baskın katılımı"
     },
     "seasons": {
       "title": "Sezonlar",
@@ -1422,6 +1433,7 @@
   "phase6": {
     "common": {
       "cancel": "İptal",
+      "save": "Kaydet",
       "unknown": "Bilinmiyor"
     },
     "reservoirRaid": {
@@ -1460,6 +1472,20 @@
       "edit": "Düzenle",
       "newInstance": "Yeni baskın",
       "notAuthorized": "Bu baskını yönetme yetkiniz yok.",
+      "yourAssignment": "Göreviniz",
+      "yourStatus": "Durumunuz",
+      "notRegistered": "Bu baskına kayıtlı değilsiniz.",
+      "assignedObjective": "Atanan görev",
+      "noObjectiveAssigned": "Henüz görev atanmadı.",
+      "registerNow": "Bu baskına kaydol",
+      "registering": "Kaydediliyor...",
+      "registrationSubmitted": "Başarıyla kaydoldunuz.",
+      "registrationFailed": "Kayıt başarısız. Lütfen tekrar deneyin.",
+      "editRegistration": "Kaydı güncelle",
+      "updating": "Kaydediliyor...",
+      "registrationUpdated": "Birlik güçleri güncellendi.",
+      "updateFailed": "Güncelleme başarısız. Lütfen tekrar deneyin.",
+      "editRegistrationHint": "Baskın başlamadan önce birlik güçlerinizi güncelleyebilirsiniz.",
       "lastWater": "Son su",
       "totalWater": "Toplam su",
       "statusValues": {

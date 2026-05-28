@@ -12,9 +12,10 @@ import { hasRole } from "@/lib/roles";
 interface SidebarProps {
   role: string;
   allianceName: string;
+  unreadCount?: number;
 }
 
-export function Sidebar({ role, allianceName }: SidebarProps) {
+export function Sidebar({ role, allianceName, unreadCount = 0 }: SidebarProps) {
   const t = useTranslations("phase2.nav");
   const isAdmin = role === "admin";
   const isR4Plus = hasRole(role, "r4");
@@ -88,6 +89,11 @@ export function Sidebar({ role, allianceName }: SidebarProps) {
         <NavLink href="/notifications">
           <Bell size={16} strokeWidth={1.5} className="shrink-0" />
           {t("notifications")}
+          {unreadCount > 0 && (
+            <span className="ml-auto flex h-4 min-w-[16px] items-center justify-center rounded-full bg-gold px-1 text-[10px] font-bold leading-none text-bg">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
         </NavLink>
 
         {isAdmin && (

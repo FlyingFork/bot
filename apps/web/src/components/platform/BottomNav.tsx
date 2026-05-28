@@ -14,20 +14,28 @@ import { hasRole } from "@/lib/roles";
 
 interface BottomNavProps {
   role: string;
+  unreadCount?: number;
 }
 
-function NavItem({ href, icon: Icon, label }: { href: string; icon: React.ElementType; label: string }) {
+function NavItem({ href, icon: Icon, label, badge }: { href: string; icon: React.ElementType; label: string; badge?: number }) {
   const pathname = usePathname();
   const isActive = pathname === href || pathname.startsWith(href + "/");
   return (
     <Link
       href={href}
       className={cn(
-        "flex flex-col items-center gap-0.5 px-3 py-2 text-[10px] font-medium transition-colors min-w-[44px]",
+        "relative flex flex-col items-center gap-0.5 px-3 py-2 text-[10px] font-medium transition-colors min-w-[44px]",
         isActive ? "text-gold" : "text-muted hover:text-text",
       )}
     >
-      <Icon size={20} strokeWidth={1.5} />
+      <span className="relative">
+        <Icon size={20} strokeWidth={1.5} />
+        {badge != null && badge > 0 && (
+          <span className="absolute -top-1 -right-1.5 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-gold px-0.5 text-[8px] font-bold leading-none text-bg">
+            {badge > 99 ? "99+" : badge}
+          </span>
+        )}
+      </span>
       <span>{label}</span>
     </Link>
   );
@@ -46,7 +54,7 @@ function DrawerLink({ href, icon: Icon, label, close }: { href: string; icon: Re
   );
 }
 
-export function BottomNav({ role }: BottomNavProps) {
+export function BottomNav({ role, unreadCount = 0 }: BottomNavProps) {
   const t = useTranslations("phase2.nav");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const isR4Plus = hasRole(role, "r4");
@@ -58,7 +66,7 @@ export function BottomNav({ role }: BottomNavProps) {
         <NavItem href="/dashboard" icon={LayoutDashboard} label={t("home")} />
         <NavItem href="/events/alliance-duel" icon={Swords} label="Duel" />
         <NavItem href="/events/reservoir-raid" icon={Droplets} label="Raid" />
-        <NavItem href="/notifications" icon={Bell} label={t("alerts")} />
+        <NavItem href="/notifications" icon={Bell} label={t("alerts")} badge={unreadCount} />
         <button
           onClick={() => setDrawerOpen(true)}
           className="flex flex-col items-center gap-0.5 px-3 py-2 text-[10px] font-medium text-muted hover:text-text transition-colors min-w-[44px]"

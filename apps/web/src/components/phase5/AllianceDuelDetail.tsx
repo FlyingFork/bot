@@ -131,7 +131,7 @@ function selectClass() {
 
 // ── DayCard (unchanged) ───────────────────────────────────────────────────────
 
-function DayCard({ day, duelId }: { day: DuelDayRow; duelId: string }) {
+function DayCard({ day, duelId, userMemberId }: { day: DuelDayRow; duelId: string; userMemberId?: string | null }) {
   const t = useTranslations("phase5.allianceDuel");
   const maxPts = day.hasData && day.scores.length > 0 ? Math.max(...day.scores.map((s) => s.points)) : 0;
   const [low, setLow] = useState(0);
@@ -206,13 +206,16 @@ function DayCard({ day, duelId }: { day: DuelDayRow; duelId: string }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visibleScores.map((score) => (
-                  <TableRow key={score.id}>
-                    <TableCell>{t(`sides.${score.side}`)}</TableCell>
-                    <TableCell className="font-medium text-text-primary">{score.memberName}</TableCell>
-                    <TableCell>{score.points}</TableCell>
-                  </TableRow>
-                ))}
+                {visibleScores.map((score) => {
+                  const isMe = userMemberId != null && score.memberId === userMemberId;
+                  return (
+                    <TableRow key={score.id} className={isMe ? "bg-gold/5" : undefined}>
+                      <TableCell>{t(`sides.${score.side}`)}</TableCell>
+                      <TableCell className={isMe ? "font-bold text-gold" : "font-medium text-text-primary"}>{score.memberName}</TableCell>
+                      <TableCell className={isMe ? "font-bold text-gold" : undefined}>{score.points}</TableCell>
+                    </TableRow>
+                  );
+                })}
                 {visibleScores.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={3} className="py-4 text-center text-text-muted">{t("noScoresInRange")}</TableCell>
@@ -1028,7 +1031,7 @@ function SummaryTab({ duel }: { duel: DuelDetailData }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function AllianceDuelDetail({ duel, isAdmin }: { duel: DuelDetailData; isAdmin: boolean }) {
+export function AllianceDuelDetail({ duel, isAdmin, userMemberId }: { duel: DuelDetailData; isAdmin: boolean; userMemberId?: string | null }) {
   const t = useTranslations("phase5.allianceDuel");
   const searchParams = useSearchParams();
   const [tab, setTab] = useState(() => {
@@ -1066,7 +1069,7 @@ export function AllianceDuelDetail({ duel, isAdmin }: { duel: DuelDetailData; is
       {tab === "days" && (
         <section className="grid gap-4 lg:grid-cols-2">
           {duel.days.map((day) => (
-            <DayCard key={day.id} day={day} duelId={duel.id} />
+            <DayCard key={day.id} day={day} duelId={duel.id} userMemberId={userMemberId} />
           ))}
         </section>
       )}

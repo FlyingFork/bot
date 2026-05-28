@@ -724,7 +724,12 @@
       "noActiveEvents": "Активных событий пока нет.",
       "recentNotifications": "Последние уведомления",
       "viewAll": "Все",
-      "noNotifications": "Уведомлений пока нет."
+      "noNotifications": "Уведомлений пока нет.",
+      "power": "Мощность",
+      "duelParticipation": "Участие в дуэлях",
+      "raidParticipation": "Участие в рейдах",
+      "raidRegistrationOpen": "Регистрация на рейд открыта!",
+      "raidRegistrationCta": "Посмотрите и зарегистрируйтесь на предстоящий рейд резервуара."
     },
     "profile": {
       "title": "Профиль",
@@ -1202,7 +1207,13 @@
       "duelMomentumHint": "Последние 5 результатов — от старых к новым",
       "noDuelHistory": "Нет завершённых дуэлей",
       "raidYieldTitle": "Вода за последний рейд",
-      "raidYieldVsPrevious": "по сравнению с предыдущим"
+      "raidYieldVsPrevious": "по сравнению с предыдущим",
+      "yourStats": "Ваши показатели",
+      "yourPower": "Ваша мощность",
+      "powerAboveAverage": "+{delta}% выше среднего",
+      "powerBelowAverage": "{delta}% ниже среднего",
+      "duelParticipation": "Участие в дуэлях",
+      "raidParticipation": "Участие в рейдах"
     },
     "seasons": {
       "title": "Сезоны",
@@ -1422,6 +1433,7 @@
   "phase6": {
     "common": {
       "cancel": "Отмена",
+      "save": "Сохранить",
       "unknown": "Неизвестно"
     },
     "reservoirRaid": {
@@ -1460,6 +1472,20 @@
       "edit": "Редактировать",
       "newInstance": "Новый рейд",
       "notAuthorized": "У вас нет прав для управления этим рейдом.",
+      "yourAssignment": "Ваше задание",
+      "yourStatus": "Ваш статус",
+      "notRegistered": "Вы не зарегистрированы на этот рейд.",
+      "assignedObjective": "Назначенная цель",
+      "noObjectiveAssigned": "Цель ещё не назначена.",
+      "registerNow": "Зарегистрироваться на рейд",
+      "registering": "Регистрация...",
+      "registrationSubmitted": "Регистрация прошла успешно.",
+      "registrationFailed": "Ошибка регистрации. Попробуйте ещё раз.",
+      "editRegistration": "Обновить регистрацию",
+      "updating": "Сохранение...",
+      "registrationUpdated": "Мощность отрядов обновлена.",
+      "updateFailed": "Ошибка обновления. Попробуйте ещё раз.",
+      "editRegistrationHint": "Вы можете обновить мощность отрядов до начала рейда.",
       "lastWater": "Последняя вода",
       "totalWater": "Итого воды",
       "statusValues": {

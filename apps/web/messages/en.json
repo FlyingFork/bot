@@ -724,7 +724,12 @@
       "noActiveEvents": "No active events yet.",
       "recentNotifications": "Recent notifications",
       "viewAll": "View all",
-      "noNotifications": "No notifications yet."
+      "noNotifications": "No notifications yet.",
+      "power": "Power",
+      "duelParticipation": "Duel participation",
+      "raidParticipation": "Raid participation",
+      "raidRegistrationOpen": "Raid registration is open!",
+      "raidRegistrationCta": "View and register for the upcoming Reservoir Raid."
     },
     "profile": {
       "title": "Profile",
@@ -1202,7 +1207,13 @@
       "duelMomentumHint": "Last 5 results — oldest to newest",
       "noDuelHistory": "No completed duels yet",
       "raidYieldTitle": "Last raid water",
-      "raidYieldVsPrevious": "vs previous raid"
+      "raidYieldVsPrevious": "vs previous raid",
+      "yourStats": "Your stats",
+      "yourPower": "Your power",
+      "powerAboveAverage": "+{delta}% above average",
+      "powerBelowAverage": "{delta}% below average",
+      "duelParticipation": "Duel participation",
+      "raidParticipation": "Raid participation"
     },
     "seasons": {
       "title": "Seasons",
@@ -1422,6 +1433,7 @@
   "phase6": {
     "common": {
       "cancel": "Cancel",
+      "save": "Save",
       "unknown": "Unknown"
     },
     "reservoirRaid": {
@@ -1460,6 +1472,20 @@
       "edit": "Edit",
       "newInstance": "New raid",
       "notAuthorized": "You do not have permission to manage this raid.",
+      "yourAssignment": "Your assignment",
+      "yourStatus": "Your status",
+      "notRegistered": "You are not registered for this raid.",
+      "assignedObjective": "Assigned objective",
+      "noObjectiveAssigned": "No objective assigned yet.",
+      "registerNow": "Register for this raid",
+      "registering": "Registering...",
+      "registrationSubmitted": "Registered successfully.",
+      "registrationFailed": "Registration failed. Please try again.",
+      "editRegistration": "Update registration",
+      "updating": "Saving...",
+      "registrationUpdated": "Squad powers updated.",
+      "updateFailed": "Update failed. Please try again.",
+      "editRegistrationHint": "You can update your squad powers before the raid starts.",
       "lastWater": "Last water",
       "totalWater": "Total water",
       "statusValues": {

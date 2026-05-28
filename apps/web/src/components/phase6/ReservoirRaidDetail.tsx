@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PARTICIPANT_LIMIT, RESERVIST_LIMIT } from "@/lib/phase6-constants";
 import { ObjectivesTab as ObjectivesTabImpl } from "@/components/phase6/objectives/ObjectivesTab";
+import { getObjectiveName, type ObjectiveLang } from "@/lib/raid-objectives";
 
 // ─────────────────────────────────────────────
 // Types
@@ -740,6 +741,124 @@ function ResultsTab({
 }
 
 // ─────────────────────────────────────────────
+// Read-only view for R1-R3 members
+// ─────────────────────────────────────────────
+
+function MemberRaidView({
+  raid,
+  userMemberId,
+  userMemberName,
+}: {
+  raid: RaidDetailData;
+  userMemberId: string | null;
+  userMemberName: string | null;
+}) {
+  const t = useTranslations("phase6");
+  const locale = useLocale();
+  const planLang = (["en", "ru", "tr"].includes(locale) ? locale : "en") as ObjectiveLang;
+
+  const myParticipant = userMemberId
+    ? raid.participants.find((p) => p.memberId === userMemberId)
+    : null;
+
+  const myObjective = myParticipant
+    ? raid.objectives.find((o) => o.assignments.some((a) => a.participantId === myParticipant.id))
+    : null;
+
+  const selectedParticipants = raid.participants
+    .filter((p) => p.registrationStatus === "SELECTED_PARTICIPANT" || p.registrationStatus === "SELECTED_RESERVIST")
+    .sort((a, b) => b.totalSquadPower - a.totalSquadPower);
+
+  const raidStarted = new Date(raid.startsAt) <= new Date();
+  const currentSquad1 = myParticipant?.squadPowers.find((s) => s.squadIndex === 1)?.power ?? null;
+
+  function buildRegUrl() {
+    const base = `/events/reservoir-raid/${raid.publicToken}/register`;
+    const params = new URLSearchParams();
+    if (userMemberName) params.set("name", userMemberName);
+    if (currentSquad1 != null) params.set("s1", String(currentSquad1));
+    const qs = params.toString();
+    return qs ? `${base}?${qs}` : base;
+  }
+
+  return (
+    <div className="space-y-4">
+      {myParticipant ? (
+        <div className="rounded-md border border-gold-border bg-surface p-4 space-y-3">
+          <h2 className="text-sm font-bold text-gold">{t("reservoirRaid.yourAssignment")}</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-text-muted">{t("reservoirRaid.yourStatus")}</p>
+              <Badge variant={statusBadgeVariant(myParticipant.registrationStatus)}>
+                {t(`reservoirRaid.participants.statusLabels.${myParticipant.registrationStatus}`)}
+              </Badge>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-text-muted">{t("reservoirRaid.assignedObjective")}</p>
+              <p className="text-sm text-text-primary">
+                {myObjective
+                  ? `${getObjectiveName(myObjective.key, planLang)} (Tier ${myObjective.tier})`
+                  : t("reservoirRaid.noObjectiveAssigned")}
+              </p>
+            </div>
+            {currentSquad1 != null && (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-text-muted">{t("registration.squad1Power")}</p>
+                <p className="text-sm text-text-primary">{currentSquad1.toLocaleString()}</p>
+              </div>
+            )}
+          </div>
+          {!raidStarted && (
+            <Button size="sm" variant="ghost" nativeButton={false} render={<Link href={buildRegUrl()} />}>
+              {t("reservoirRaid.editRegistration")}
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-sm text-text-muted">{t("reservoirRaid.notRegistered")}</p>
+          {raid.registrationOpen && (
+            <Button size="sm" variant="default" nativeButton={false} render={<Link href={buildRegUrl()} />}>
+              {t("reservoirRaid.registerNow")}
+            </Button>
+          )}
+        </div>
+      )}
+
+      {selectedParticipants.length > 0 && (
+        <div className="rounded-md border border-border-subtle bg-surface overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("reservoirRaid.registrations.ingameName")}</TableHead>
+                <TableHead>{t("reservoirRaid.participants.status")}</TableHead>
+                <TableHead>{t("reservoirRaid.participants.squadPower")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {selectedParticipants.map((p) => {
+                const isMe = userMemberId !== null && p.memberId === userMemberId;
+                return (
+                  <TableRow key={p.id} className={isMe ? "bg-gold/5 font-semibold" : undefined}>
+                    <TableCell className={isMe ? "text-gold" : undefined}>{p.username}</TableCell>
+                    <TableCell>
+                      <Badge variant={statusBadgeVariant(p.registrationStatus)}>
+                        {t(`reservoirRaid.participants.statusLabels.${p.registrationStatus}`)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{p.totalSquadPower > 0 ? formatPower(p.totalSquadPower) : "—"}</TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
 // Main Detail Component
 // ─────────────────────────────────────────────
 
@@ -749,12 +868,14 @@ export function ReservoirRaidDetail({
   isAdmin,
   role,
   userLanguage,
+  userMemberId,
 }: {
   raid: RaidDetailData;
   members: MemberOption[];
   isAdmin: boolean;
   role: string;
   userLanguage: string;
+  userMemberId?: string | null;
 }) {
   const t = useTranslations("phase6");
   const router = useRouter();
@@ -876,7 +997,11 @@ export function ReservoirRaidDetail({
           )}
         </>
       ) : (
-        <p className="text-sm text-text-muted">{t("reservoirRaid.notAuthorized")}</p>
+        <MemberRaidView
+          raid={raid}
+          userMemberId={userMemberId ?? null}
+          userMemberName={userMemberId ? (members.find((m) => m.id === userMemberId)?.username ?? null) : null}
+        />
       )}
     </div>
   );

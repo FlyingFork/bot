@@ -299,7 +299,7 @@ export default async function AllianceDuelDetailPage({ params }: Props) {
         title={duel.opponentName ?? duel.opponentTag ?? t("title")}
         subtitle={`${duel.startDate.toISOString().slice(0, 10)} - ${duel.endDate.toISOString().slice(0, 10)}`}
       />
-      <AllianceDuelDetail duel={detail} isAdmin={user.role === "admin"} />
+      <AllianceDuelDetail duel={detail} isAdmin={user.role === "admin"} userMemberId={user.allianceMemberId ?? null} />
     </div>
   );
 }

@@ -192,6 +192,7 @@ export default async function ReservoirRaidDetailPage({ params }: Props) {
         isAdmin={user.role === "admin"}
         role={user.role ?? "r1"}
         userLanguage={(user.language as string) ?? "en"}
+        userMemberId={user.allianceMemberId ?? null}
       />
     </div>
   );
