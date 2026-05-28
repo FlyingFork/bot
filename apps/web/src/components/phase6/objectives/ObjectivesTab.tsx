@@ -186,6 +186,7 @@ export function ObjectivesTab({ planId, raidDate, startsAt, objectives, particip
         {/* Assignment sheet — shared by desktop click and mobile tap */}
         <ObjectiveSheet
           objective={sheetObjective}
+          objectives={objectives}
           participants={participants}
           planLang={planLang}
           canEdit={canEdit}

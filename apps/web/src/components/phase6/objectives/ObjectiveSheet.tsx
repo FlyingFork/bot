@@ -1,15 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import { X, ChevronLeft } from "lucide-react";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
+import { ChevronLeft, Search, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { RaidObjectiveRow, RaidParticipantRow } from "@/components/phase6/ReservoirRaidDetail";
-import { TIER_COLORS, getObjectiveName, type ObjectiveLang } from "@/lib/raid-objectives";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { compareParticipantsByTotalPower, isEligibleRaidParticipant, participantTotalPower } from "@/lib/raid-assignment";
 import { formatPower } from "@/lib/power";
+import { TIER_COLORS, getObjectiveName, type ObjectiveLang } from "@/lib/raid-objectives";
 
 type Props = {
   objective: RaidObjectiveRow | null;
+  objectives: RaidObjectiveRow[];
   participants: RaidParticipantRow[];
   planLang: ObjectiveLang;
   canEdit: boolean;
@@ -20,36 +33,132 @@ type Props = {
   onUnassign: (objectiveId: string, participantId: string) => void;
 };
 
-export function ObjectiveSheet({ objective: obj, participants, planLang, canEdit, isPending, open, onOpenChange, onAssign, onUnassign }: Props) {
+export function ObjectiveSheet({
+  objective: obj,
+  objectives,
+  participants,
+  planLang,
+  canEdit,
+  isPending,
+  open,
+  onOpenChange,
+  onAssign,
+  onUnassign,
+}: Props) {
+  const t = useTranslations("phase6.reservoirRaid.objectives");
   const [selectOpen, setSelectOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [pendingMove, setPendingMove] = useState<RaidParticipantRow | null>(null);
 
   if (!obj) return null;
 
+  const objective = obj;
   const tierColor = obj.tier > 0 ? TIER_COLORS[obj.tier as keyof typeof TIER_COLORS] : null;
   const name = getObjectiveName(obj.key, planLang);
+  const assignmentsByTotalPower = [...obj.assignments].sort((a, b) => b.totalSquadPower - a.totalSquadPower || a.playerName.localeCompare(b.playerName));
 
-  const assignedIds = new Set(obj.assignments.map((a) => a.participantId));
-  const eligible = participants.filter(
-    (p) => p.registrationStatus === "SELECTED_PARTICIPANT" || p.registrationStatus === "SELECTED_RESERVIST",
+  const currentObjectiveIds = new Set(obj.assignments.map((assignment) => assignment.participantId));
+  const assignmentMap = new Map<string, RaidObjectiveRow>();
+  for (const objective of objectives) {
+    for (const assignment of objective.assignments) {
+      assignmentMap.set(assignment.participantId, objective);
+    }
+  }
+
+  const query = search.trim().toLowerCase();
+  const eligible = participants.filter(isEligibleRaidParticipant);
+  const candidates = eligible
+    .filter((participant) => !currentObjectiveIds.has(participant.id))
+    .filter(
+      (participant) =>
+        participant.username.toLowerCase().includes(query) ||
+        (participant.memberName?.toLowerCase().includes(query) ?? false),
+    );
+
+  const sortByTotalPower = (rows: RaidParticipantRow[]) => [...rows].sort(compareParticipantsByTotalPower);
+  const recommended = sortByTotalPower(candidates).slice(0, 3);
+  const recommendedIds = new Set(recommended.map((participant) => participant.id));
+  const available = sortByTotalPower(
+    candidates.filter((participant) => !recommendedIds.has(participant.id) && !assignmentMap.has(participant.id)),
   );
-  const unassigned = eligible.filter((p) => !assignedIds.has(p.id));
-  const filtered = unassigned.filter((p) => p.username.toLowerCase().includes(search.toLowerCase()));
-  const participantsFirst = [
-    ...filtered.filter((p) => p.registrationStatus === "SELECTED_PARTICIPANT"),
-    ...filtered.filter((p) => p.registrationStatus === "SELECTED_RESERVIST"),
-  ];
+  const alreadyAssigned = sortByTotalPower(
+    candidates.filter((participant) => !recommendedIds.has(participant.id) && assignmentMap.has(participant.id)),
+  );
+  const candidateCount = recommended.length + available.length + alreadyAssigned.length;
+
+  function roleLabel(status: string) {
+    return status === "SELECTED_PARTICIPANT" ? t("participantRole") : t("reservistRole");
+  }
+
+  function selectParticipant(participant: RaidParticipantRow) {
+    if (assignmentMap.has(participant.id)) {
+      setPendingMove(participant);
+      return;
+    }
+    onAssign(objective.id, participant.id);
+    setSelectOpen(false);
+    onOpenChange(false);
+  }
+
+  function confirmMove() {
+    if (!pendingMove) return;
+    onAssign(objective.id, pendingMove.id);
+    setPendingMove(null);
+    setSelectOpen(false);
+    onOpenChange(false);
+  }
+
+  function renderParticipantButton(participant: RaidParticipantRow) {
+    const currentAssignment = assignmentMap.get(participant.id);
+
+    return (
+      <button
+        key={participant.id}
+        type="button"
+        disabled={isPending}
+        onClick={() => selectParticipant(participant)}
+        className="flex w-full items-center justify-between gap-3 border-b border-border-subtle px-4 py-3 text-left hover:bg-raised disabled:opacity-50"
+      >
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="truncate text-sm font-medium text-text-primary">{participant.username}</p>
+            {currentAssignment && (
+              <Badge variant="warning" className="h-4 max-w-full px-1.5 text-[9px] normal-case tracking-normal">
+                {t("assignedBadge", { objective: getObjectiveName(currentAssignment.key, planLang) })}
+              </Badge>
+            )}
+          </div>
+          <p className="text-xs text-text-muted">{roleLabel(participant.registrationStatus)}</p>
+        </div>
+        <span className="shrink-0 text-sm font-semibold tabular-nums" style={{ color: "#e8a020" }}>
+          {formatPower(participantTotalPower(participant))}
+        </span>
+      </button>
+    );
+  }
+
+  function renderParticipantCategory(title: string, rows: RaidParticipantRow[]) {
+    if (rows.length === 0) return null;
+    return (
+      <section>
+        <p className="sticky top-0 z-10 border-b border-border-subtle bg-surface px-4 py-2 text-[11px] font-semibold uppercase text-text-secondary">
+          {title} ({rows.length})
+        </p>
+        {rows.map((participant) => renderParticipantButton(participant))}
+      </section>
+    );
+  }
 
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="bottom" className="flex flex-col gap-0 p-0 max-h-[75dvh]">
+        <SheetContent side="bottom" className="flex max-h-[75dvh] flex-col gap-0 p-0">
           <SheetHeader className="border-b border-border-subtle">
             <div className="flex items-start justify-between">
               <div>
                 <SheetTitle className="text-sm font-semibold">{name}</SheetTitle>
-                <p className="text-xs mt-0.5" style={{ color: tierColor?.text ?? "#6b7fa0" }}>
-                  Tier {obj.tier} · +{obj.waterRate.toLocaleString()}/min
+                <p className="mt-0.5 text-xs" style={{ color: tierColor?.text ?? "#6b7fa0" }}>
+                  {t("objectiveMeta", { tier: obj.tier, rate: obj.waterRate.toLocaleString() })}
                 </p>
               </div>
               <SheetClose className="text-text-muted hover:text-text-primary">
@@ -58,25 +167,30 @@ export function ObjectiveSheet({ objective: obj, participants, planLang, canEdit
             </div>
           </SheetHeader>
 
-          <div className="overflow-y-auto flex-1 p-4 space-y-4">
-            {/* Assigned list */}
+          <div className="flex-1 space-y-4 overflow-y-auto p-4">
             {obj.assignments.length > 0 && (
               <div className="space-y-2">
-                <p className="text-xs font-semibold text-text-secondary">Assigned ({obj.assignments.length})</p>
-                {obj.assignments.map((a) => (
-                  <div key={a.participantId} className="flex items-center justify-between gap-2 rounded-md border border-border-subtle bg-raised px-3 py-2">
+                <p className="text-xs font-semibold text-text-secondary">
+                  {t("assignedPlayers")} ({obj.assignments.length})
+                </p>
+                {assignmentsByTotalPower.map((assignment) => (
+                  <div
+                    key={assignment.participantId}
+                    className="flex items-center justify-between gap-2 rounded-md border border-border-subtle bg-raised px-3 py-2"
+                  >
                     <div>
-                      <p className="text-xs font-medium text-text-primary">{a.playerName}</p>
+                      <p className="text-xs font-medium text-text-primary">{assignment.playerName}</p>
                       <p className="text-[10px] text-text-muted">
-                        {formatPower(a.squad1Power)} · {a.registrationStatus === "SELECTED_PARTICIPANT" ? "Participant" : "Reservist"}
+                        {formatPower(assignment.totalSquadPower)} · {roleLabel(assignment.registrationStatus)}
                       </p>
                     </div>
                     {canEdit && (
                       <button
                         type="button"
                         disabled={isPending}
-                        onClick={() => onUnassign(obj.id, a.participantId)}
+                        onClick={() => onUnassign(obj.id, assignment.participantId)}
                         className="text-text-muted hover:text-cn-danger"
+                        aria-label={t("removeAssignment")}
                       >
                         <X className="h-4 w-4" />
                       </button>
@@ -86,81 +200,85 @@ export function ObjectiveSheet({ objective: obj, participants, planLang, canEdit
               </div>
             )}
 
-            {/* Add participant button */}
-            {canEdit && unassigned.length > 0 && (
+            {canEdit && eligible.length > obj.assignments.length && (
               <Button
                 variant="outline"
                 size="sm"
                 className="w-full"
-                onClick={() => { setSelectOpen(true); setSearch(""); }}
+                onClick={() => {
+                  setSelectOpen(true);
+                  setSearch("");
+                }}
               >
-                Add participant
+                {t("addParticipant")}
               </Button>
             )}
 
-            {canEdit && unassigned.length === 0 && obj.assignments.length === 0 && (
-              <p className="text-xs text-text-muted text-center">No eligible participants available.</p>
+            {canEdit && eligible.length === obj.assignments.length && obj.assignments.length === 0 && (
+              <p className="text-center text-xs text-text-muted">{t("noEligibleParticipants")}</p>
             )}
           </div>
         </SheetContent>
       </Sheet>
 
-      {/* Full-screen participant select */}
       <Sheet open={selectOpen} onOpenChange={setSelectOpen}>
-        <SheetContent side="bottom" className="flex flex-col gap-0 p-0 max-h-[90dvh]">
+        <SheetContent side="bottom" className="flex max-h-[90dvh] flex-col gap-0 p-0">
           <SheetHeader className="border-b border-border-subtle">
             <div className="flex items-center gap-2">
               <button type="button" onClick={() => setSelectOpen(false)} className="text-text-muted hover:text-text-primary">
                 <ChevronLeft className="h-5 w-5" />
               </button>
-              <SheetTitle className="text-sm font-semibold">Select participant</SheetTitle>
+              <SheetTitle className="text-sm font-semibold">{t("selectParticipant")}</SheetTitle>
             </div>
           </SheetHeader>
 
-          <div className="p-3 border-b border-border-subtle">
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search participants…"
-              autoFocus
-              className="w-full h-9 rounded-md border border-border-default bg-raised px-3 text-sm text-text-primary outline-none focus:border-border-active"
-            />
+          <div className="border-b border-border-subtle p-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+              <Input
+                type="text"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder={t("searchParticipants")}
+                autoFocus
+                className="h-9 pl-9"
+              />
+            </div>
           </div>
 
-          <div className="overflow-y-auto flex-1">
-            {participantsFirst.map((p) => {
-              const squad1 = p.squadPowers.find((s) => s.squadIndex === 1)?.power ?? 0;
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  disabled={isPending}
-                  onClick={() => {
-                    onAssign(obj.id, p.id);
-                    setSelectOpen(false);
-                    onOpenChange(false);
-                  }}
-                  className="w-full flex items-center justify-between px-4 py-3 border-b border-border-subtle hover:bg-raised text-left"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-text-primary">{p.username}</p>
-                    <p className="text-xs text-text-muted">
-                      {p.registrationStatus === "SELECTED_PARTICIPANT" ? "Participant" : "Reservist"}
-                    </p>
-                  </div>
-                  <span className="text-sm font-semibold tabular-nums" style={{ color: "#e8a020" }}>
-                    {formatPower(squad1)}
-                  </span>
-                </button>
-              );
-            })}
-            {participantsFirst.length === 0 && (
-              <p className="text-sm text-text-muted text-center py-8">No participants found.</p>
-            )}
+          <div className="flex-1 overflow-y-auto">
+            {renderParticipantCategory(t("recommendedPlayers"), recommended)}
+            {renderParticipantCategory(t("availableParticipants"), available)}
+            {renderParticipantCategory(t("alreadyAssignedParticipants"), alreadyAssigned)}
+            {candidateCount === 0 && <p className="py-8 text-center text-sm text-text-muted">{t("noParticipantsFound")}</p>}
           </div>
         </SheetContent>
       </Sheet>
+
+      <Dialog open={!!pendingMove} onOpenChange={(nextOpen) => !nextOpen && setPendingMove(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("moveConfirmTitle")}</DialogTitle>
+            <DialogDescription>
+              {pendingMove
+                ? t("moveConfirmDescription", {
+                    player: pendingMove.username,
+                    from: getObjectiveName(assignmentMap.get(pendingMove.id)?.key ?? "", planLang),
+                    to: name,
+                  })
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col-reverse sm:flex-row">
+            <Button variant="ghost" onClick={() => setPendingMove(null)} className="w-full sm:w-auto">
+              {t("moveCancel")}
+            </Button>
+            <Button onClick={confirmMove} disabled={isPending} className="w-full sm:w-auto">
+              {t("moveConfirm")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

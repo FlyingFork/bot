@@ -5,6 +5,7 @@ import { Droplet, Droplets, GripVertical } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import type { RaidObjectiveRow, RaidParticipantRow } from "@/components/phase6/ReservoirRaidDetail";
+import { participantTotalPower } from "@/lib/raid-assignment";
 import { TIER_COLORS, getObjectiveName, type ObjectiveLang } from "@/lib/raid-objectives";
 import { formatPower } from "@/lib/power";
 
@@ -30,7 +31,6 @@ export function ParticipantCard({ participant: p, assignment, planLang, canEdit 
     disabled: !canEdit,
   });
 
-  const squad1 = p.squadPowers.find((s) => s.squadIndex === 1)?.power ?? 0;
   const isReservist = p.registrationStatus === "SELECTED_RESERVIST";
   const tierColor = assignment ? TIER_COLORS[assignment.tier as keyof typeof TIER_COLORS] : null;
   const objName = assignment ? getObjectiveName(assignment.key, planLang) : null;
@@ -50,7 +50,7 @@ export function ParticipantCard({ participant: p, assignment, planLang, canEdit 
         </div>
         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
           <span className="text-[11px] font-semibold tabular-nums" style={{ color: "#e8a020" }}>
-            {formatPower(squad1)}
+            {formatPower(participantTotalPower(p))}
           </span>
           {objName ? (
             <span
@@ -64,7 +64,7 @@ export function ParticipantCard({ participant: p, assignment, planLang, canEdit 
             </span>
           ) : (
             <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium text-text-muted bg-raised">
-              Unassigned
+              {t("reservoirRaid.objectives.unassigned")}
             </span>
           )}
         </div>

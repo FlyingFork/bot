@@ -1,6 +1,11 @@
 "use client";
 
+import { useState } from "react";
+import { Search } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { RaidObjectiveRow, RaidParticipantRow } from "@/components/phase6/ReservoirRaidDetail";
+import { Input } from "@/components/ui/input";
+import { compareParticipantsByTotalPower, isEligibleRaidParticipant } from "@/lib/raid-assignment";
 import type { ObjectiveLang } from "@/lib/raid-objectives";
 import { ParticipantCard } from "./ParticipantCard";
 
@@ -12,6 +17,8 @@ type Props = {
 };
 
 export function ParticipantPanel({ participants, objectives, planLang, canEdit }: Props) {
+  const t = useTranslations("phase6.reservoirRaid.objectives");
+  const [search, setSearch] = useState("");
   const assignmentMap = new Map<string, RaidObjectiveRow>();
   for (const obj of objectives) {
     for (const a of obj.assignments) {
@@ -19,32 +26,37 @@ export function ParticipantPanel({ participants, objectives, planLang, canEdit }
     }
   }
 
-  const eligible = participants.filter(
-    (p) => p.registrationStatus === "SELECTED_PARTICIPANT" || p.registrationStatus === "SELECTED_RESERVIST",
-  );
+  const query = search.trim().toLowerCase();
+  const eligible = participants
+    .filter(isEligibleRaidParticipant)
+    .filter((p) => p.username.toLowerCase().includes(query) || (p.memberName?.toLowerCase().includes(query) ?? false));
 
   const mainParticipants = eligible
     .filter((p) => p.registrationStatus === "SELECTED_PARTICIPANT")
-    .sort((a, b) => {
-      const aP = a.squadPowers.find((s) => s.squadIndex === 1)?.power ?? 0;
-      const bP = b.squadPowers.find((s) => s.squadIndex === 1)?.power ?? 0;
-      return bP - aP;
-    });
+    .sort(compareParticipantsByTotalPower);
 
   const reservists = eligible
     .filter((p) => p.registrationStatus === "SELECTED_RESERVIST")
-    .sort((a, b) => {
-      const aP = a.squadPowers.find((s) => s.squadIndex === 1)?.power ?? 0;
-      const bP = b.squadPowers.find((s) => s.squadIndex === 1)?.power ?? 0;
-      return bP - aP;
-    });
+    .sort(compareParticipantsByTotalPower);
 
   return (
     <div className="h-full overflow-y-auto space-y-4">
+      <div className="sticky top-0 z-10 bg-surface pb-1">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-muted" />
+          <Input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder={t("searchParticipants")}
+            className="h-8 pl-8 text-xs"
+          />
+        </div>
+      </div>
+
       {mainParticipants.length > 0 && (
         <section className="space-y-1.5">
           <p className="text-xs font-semibold text-text-secondary uppercase tracking-wide px-1">
-            Participants ({mainParticipants.length})
+            {t("participantCategory")} ({mainParticipants.length})
           </p>
           <div className="space-y-1">
             {mainParticipants.map((p) => (
@@ -63,7 +75,7 @@ export function ParticipantPanel({ participants, objectives, planLang, canEdit }
       {reservists.length > 0 && (
         <section className="space-y-1.5">
           <p className="text-xs font-semibold text-text-secondary uppercase tracking-wide px-1">
-            Reservists ({reservists.length})
+            {t("reservistCategory")} ({reservists.length})
           </p>
           <div className="space-y-1">
             {reservists.map((p) => (
@@ -79,8 +91,12 @@ export function ParticipantPanel({ participants, objectives, planLang, canEdit }
         </section>
       )}
 
-      {eligible.length === 0 && (
-        <p className="text-xs text-text-muted text-center py-4">No confirmed participants yet.</p>
+      {eligible.length === 0 && participants.some(isEligibleRaidParticipant) && (
+        <p className="text-xs text-text-muted text-center py-4">{t("noParticipantsFound")}</p>
+      )}
+
+      {!participants.some(isEligibleRaidParticipant) && (
+        <p className="text-xs text-text-muted text-center py-4">{t("noConfirmedParticipants")}</p>
       )}
     </div>
   );

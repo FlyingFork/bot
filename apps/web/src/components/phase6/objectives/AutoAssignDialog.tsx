@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import type { RaidObjectiveRow, RaidParticipantRow } from "@/components/phase6/ReservoirRaidDetail";
+import { compareObjectivesByPriority, getAutoAssignDefaultCounts } from "@/lib/raid-assignment";
 import { TIER_COLORS, getObjectiveName, type ObjectiveLang } from "@/lib/raid-objectives";
 
 type Props = {
@@ -14,20 +15,6 @@ type Props = {
   planLang: ObjectiveLang;
   onApply: (assignments: { objectiveId: string; count: number }[]) => Promise<void>;
 };
-
-function computeDefaultCounts(objectives: RaidObjectiveRow[], totalPlayers: number) {
-  const assignable = [...objectives]
-    .filter((o) => o.isAssignable)
-    .sort((a, b) => a.tier - b.tier || b.waterRate - a.waterRate);
-
-  const base = Math.floor(totalPlayers / 11);
-  const remainder = totalPlayers % 11;
-
-  return assignable.map((obj, i) => ({
-    objectiveId: obj.id,
-    count: base + (i < remainder ? 1 : 0),
-  }));
-}
 
 export function AutoAssignDialog({ objectives, participants, planLang, onApply }: Props) {
   const t = useTranslations("phase6.reservoirRaid.objectives");
@@ -40,13 +27,13 @@ export function AutoAssignDialog({ objectives, participants, planLang, onApply }
   );
 
   const [counts, setCounts] = useState<Record<string, number>>(() => {
-    const defaults = computeDefaultCounts(objectives, eligible.length);
+    const defaults = getAutoAssignDefaultCounts(objectives, eligible.length);
     return Object.fromEntries(defaults.map(({ objectiveId, count }) => [objectiveId, count]));
   });
 
   // Reset counts when dialog opens
   function handleOpen() {
-    const defaults = computeDefaultCounts(objectives, eligible.length);
+    const defaults = getAutoAssignDefaultCounts(objectives, eligible.length);
     setCounts(Object.fromEntries(defaults.map(({ objectiveId, count }) => [objectiveId, count])));
     setOpen(true);
   }
@@ -54,7 +41,7 @@ export function AutoAssignDialog({ objectives, participants, planLang, onApply }
   async function handleApply() {
     const assignable = objectives
       .filter((o) => o.isAssignable)
-      .sort((a, b) => a.tier - b.tier || b.waterRate - a.waterRate);
+      .sort(compareObjectivesByPriority);
 
     const assignments = assignable.map((obj) => ({
       objectiveId: obj.id,
@@ -72,7 +59,7 @@ export function AutoAssignDialog({ objectives, participants, planLang, onApply }
 
   const assignable = [...objectives]
     .filter((o) => o.isAssignable)
-    .sort((a, b) => a.tier - b.tier || b.waterRate - a.waterRate);
+    .sort(compareObjectivesByPriority);
 
   const totalAssigned = Object.values(counts).reduce((s, n) => s + n, 0);
 
@@ -99,35 +86,31 @@ export function AutoAssignDialog({ objectives, participants, planLang, onApply }
             </div>
 
             <div className="space-y-1 max-h-80 overflow-y-auto">
-              {(() => {
-                let currentTier = -1;
-                return assignable.map((obj) => {
-                  const tierColor = TIER_COLORS[obj.tier as keyof typeof TIER_COLORS];
-                  const name = getObjectiveName(obj.key, planLang);
-                  const showTierHeader = obj.tier !== currentTier;
-                  currentTier = obj.tier;
-                  return (
-                    <div key={obj.id}>
-                      {showTierHeader && (
-                        <p className="text-[10px] font-semibold uppercase tracking-wide mt-2 mb-1" style={{ color: tierColor?.text }}>
-                          {t("exportColumns.tier")} {obj.tier} - +{obj.waterRate.toLocaleString()}/min
-                        </p>
-                      )}
-                      <div className="flex items-center justify-between gap-3 rounded px-2 py-1.5 hover:bg-raised">
-                        <span className="text-xs text-text-primary flex-1 truncate">{name}</span>
-                        <input
-                          type="number"
-                          min={0}
-                          max={eligible.length}
-                          value={counts[obj.id] ?? 0}
-                          onChange={(e) => setCounts((prev) => ({ ...prev, [obj.id]: Math.max(0, parseInt(e.target.value) || 0) }))}
-                          className="w-16 h-7 rounded border border-border-default bg-raised px-2 text-xs text-right tabular-nums text-text-primary outline-none focus:border-border-active"
-                        />
-                      </div>
+              {assignable.map((obj, index) => {
+                const tierColor = TIER_COLORS[obj.tier as keyof typeof TIER_COLORS];
+                const name = getObjectiveName(obj.key, planLang);
+                const showTierHeader = index === 0 || assignable[index - 1]?.tier !== obj.tier;
+                return (
+                  <div key={obj.id}>
+                    {showTierHeader && (
+                      <p className="text-[10px] font-semibold uppercase tracking-wide mt-2 mb-1" style={{ color: tierColor?.text }}>
+                        {t("exportColumns.tier")} {obj.tier} - +{obj.waterRate.toLocaleString()}/min
+                      </p>
+                    )}
+                    <div className="flex items-center justify-between gap-3 rounded px-2 py-1.5 hover:bg-raised">
+                      <span className="text-xs text-text-primary flex-1 truncate">{name}</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={eligible.length}
+                        value={counts[obj.id] ?? 0}
+                        onChange={(e) => setCounts((prev) => ({ ...prev, [obj.id]: Math.max(0, parseInt(e.target.value) || 0) }))}
+                        className="w-16 h-7 rounded border border-border-default bg-raised px-2 text-xs text-right tabular-nums text-text-primary outline-none focus:border-border-active"
+                      />
                     </div>
-                  );
-                });
-              })()}
+                  </div>
+                );
+              })}
             </div>
 
             <div className="flex gap-2 justify-end pt-1">

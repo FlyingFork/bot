@@ -38,7 +38,7 @@ export default async function ReservoirRaidDetailPage({ params }: Props) {
             assignments: {
               include: {
                 participant: {
-                  include: { squadPowers: { where: { squadIndex: 1 } } },
+                  include: { squadPowers: true },
                 },
               },
             },
@@ -103,7 +103,7 @@ export default async function ReservoirRaidDetailPage({ params }: Props) {
         assignments: {
           include: {
             participant: {
-              include: { squadPowers: { where: { squadIndex: 1 } } },
+              include: { squadPowers: true },
             },
           },
         },
@@ -142,14 +142,18 @@ export default async function ReservoirRaidDetailPage({ params }: Props) {
     isAssignable: obj.isAssignable,
     mapX: obj.mapX,
     mapY: obj.mapY,
-    assignments: obj.assignments.map((a) => ({
-      participantId: a.participantId,
-      playerName: a.participant.username,
-      squad1Power: Number(a.participant.squadPowers[0]?.power ?? 0),
-      registrationStatus: a.participant.registrationStatus,
-      contactType: a.participant.contactType,
-      contact: a.participant.contact,
-    })),
+    assignments: obj.assignments.map((a) => {
+      const squad1Power = a.participant.squadPowers.find((sq) => sq.squadIndex === 1)?.power ?? 0;
+      return {
+        participantId: a.participantId,
+        playerName: a.participant.username,
+        squad1Power: Number(squad1Power),
+        totalSquadPower: totalSquadPower(a.participant.squadPowers),
+        registrationStatus: a.participant.registrationStatus,
+        contactType: a.participant.contactType,
+        contact: a.participant.contact,
+      };
+    }),
   }));
 
   const memberOptions: MemberOption[] = members.map((m) => ({ id: m.id, username: m.username }));

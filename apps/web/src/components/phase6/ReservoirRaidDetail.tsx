@@ -48,6 +48,7 @@ export type RaidObjectiveRow = {
     participantId: string;
     playerName: string;
     squad1Power: number;
+    totalSquadPower: number;
     registrationStatus: string;
     contactType: string | null;
     contact: string | null;
