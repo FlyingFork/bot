@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 
 const PUBLIC_PATHS = ["/sign-in", "/sign-up", "/pending", "/suspended", "/"];
 const PUBLIC_RAID_RE = /^\/events\/reservoir-raid\/[^/]+\/register/;
+const PUBLIC_RAID_API_RE = /^\/api\/raid-plans\/[^/]+\/register$/;
 const AUTH_API_RE = /^\/api\/auth\//;
 
 function isPublic(pathname: string): boolean {
   if (AUTH_API_RE.test(pathname)) return true;
   if (PUBLIC_RAID_RE.test(pathname)) return true;
+  if (PUBLIC_RAID_API_RE.test(pathname)) return true;
   return PUBLIC_PATHS.some((p) =>
     p === "/" ? pathname === "/" : pathname === p || pathname.startsWith(p + "/"),
   );
