@@ -63,15 +63,24 @@ export function readyRoleMessage(languages) {
     return `${languages.map((language) => `${languageEmoji(language)} ${lines[language]}`).join("\n")}\n\n${mapping}`;
 }
 export function readyRoleEmbed(languages) {
+    const preamble = {
+        en: "Before being able to chat, please react and navigate to the channel for your language so translations of messages can happen.",
+        ru: "Прежде чем начать общаться, пожалуйста, нажмите на эмодзи своего языка и перейдите в соответствующий канал, чтобы сообщения переводились.",
+        tr: "Sohbet edebilmek için lütfen dilinizin emojisine tıklayın ve mesajların çevrilebilmesi için dilinize ait kanala gidin."
+    };
     const lines = {
         en: "React with the emoji of your language to receive your role. You may react to multiple.",
         ru: "Нажмите на флаг своего языка, чтобы получить роль. Можно выбрать несколько языков.",
         tr: "Dil rolünüzü almak için Türk bayrağına tıklayın. Birden fazla seçim yapabilirsiniz."
     };
+    const description = [
+        languages.map((language) => `⚠️ ${languageEmoji(language)} **${preamble[language]}**`).join("\n\n"),
+        languages.map((language) => `${languageEmoji(language)} ${lines[language]}`).join("\n\n")
+    ].join("\n\n―――――――――――\n\n");
     return new EmbedBuilder()
         .setTitle("Language Roles")
         .setColor(0x2f80ed)
-        .setDescription(languages.map((language) => `${languageEmoji(language)} ${lines[language]}`).join("\n\n"))
+        .setDescription(description)
         .addFields({
         name: "Available languages",
         value: languages.map((language) => `${languageEmoji(language)} ${languageName(language)}`).join("\n")
