@@ -38,7 +38,10 @@ export default async function ReservoirRaidDetailPage({ params }: Props) {
             assignments: {
               include: {
                 participant: {
-                  include: { squadPowers: true },
+                  include: {
+                    member: { select: { username: true } },
+                    squadPowers: true,
+                  },
                 },
               },
             },
@@ -103,7 +106,10 @@ export default async function ReservoirRaidDetailPage({ params }: Props) {
         assignments: {
           include: {
             participant: {
-              include: { squadPowers: true },
+              include: {
+                member: { select: { username: true } },
+                squadPowers: true,
+              },
             },
           },
         },
@@ -114,9 +120,10 @@ export default async function ReservoirRaidDetailPage({ params }: Props) {
   const participantRows: RaidParticipantRow[] = plan.participants.map((p) => {
     const cs = p.memberId ? contributionScores.get(p.memberId) : undefined;
     const wd = p.memberId ? waterByMember.get(p.memberId) : undefined;
+    const displayName = p.member?.username ?? p.username;
     return {
       id: p.id,
-      username: p.username,
+      username: displayName,
       memberId: p.memberId,
       memberName: p.member?.username ?? null,
       contactType: p.contactType,
@@ -146,7 +153,7 @@ export default async function ReservoirRaidDetailPage({ params }: Props) {
       const squad1Power = a.participant.squadPowers.find((sq) => sq.squadIndex === 1)?.power ?? 0;
       return {
         participantId: a.participantId,
-        playerName: a.participant.username,
+        playerName: a.participant.member?.username ?? a.participant.username,
         squad1Power: Number(squad1Power),
         totalSquadPower: totalSquadPower(a.participant.squadPowers),
         registrationStatus: a.participant.registrationStatus,

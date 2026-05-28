@@ -96,7 +96,7 @@ export async function getContributionScores(memberIds?: string[]) {
       include: {
         days: {
           include: {
-            scores: { where: { memberId: { in: ids }, points: { gt: 0 } }, select: { memberId: true } },
+            scores: { where: { memberId: { in: ids }, points: { gt: BigInt(0) } }, select: { memberId: true } },
           },
         },
       },

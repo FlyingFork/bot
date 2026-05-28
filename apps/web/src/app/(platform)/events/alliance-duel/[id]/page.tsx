@@ -52,15 +52,15 @@ export default async function AllianceDuelDetailPage({ params }: Props) {
     const allyScores = day.scores.filter((score) => score.side === "ALLY" && score.memberId);
     for (const score of day.scores.filter((score) => score.side === "ENEMY")) {
       const key = score.playerName;
-      totalByEnemy.set(key, { playerName: key, total: (totalByEnemy.get(key)?.total ?? 0) + score.points });
+      totalByEnemy.set(key, { playerName: key, total: (totalByEnemy.get(key)?.total ?? 0) + Number(score.points) });
     }
     const scoredMembers = new Set(allyScores.map((score) => score.memberId));
     for (const score of allyScores) {
       const memberName = score.member?.username ?? score.playerName;
       const current = totalByMember.get(score.memberId!) ?? { memberId: score.memberId!, memberName, total: 0 };
-      current.total += score.points;
+      current.total += Number(score.points);
       totalByMember.set(score.memberId!, current);
-      if (score.points === 0) zeroPointMembers.add(memberName);
+      if (score.points === BigInt(0)) zeroPointMembers.add(memberName);
     }
     for (const member of activeMembers) {
       if (!scoredMembers.has(member.id)) noDataMembers.add(member.username);
@@ -82,8 +82,8 @@ export default async function AllianceDuelDetailPage({ params }: Props) {
       pointValue: day.pointValue,
       hasData: day.hasData,
       dayOutcome: day.dayOutcome,
-      allyTotalPoints: day.allyTotalPoints,
-      enemyTotalPoints: day.enemyTotalPoints,
+      allyTotalPoints: Number(day.allyTotalPoints),
+      enemyTotalPoints: Number(day.enemyTotalPoints),
       pendingUpload: pendingDays.has(day.dayNumber),
       uploadEnabled: canUploadDuelDay({ role: user.role, status: duel.status, dayDate: day.date }),
       scores: day.scores.map((score) => ({
@@ -91,7 +91,7 @@ export default async function AllianceDuelDetailPage({ params }: Props) {
         memberName: score.member?.username ?? score.playerName,
         playerName: score.playerName,
         side: score.side,
-        points: score.points,
+        points: Number(score.points),
       })),
     })),
     summary: {

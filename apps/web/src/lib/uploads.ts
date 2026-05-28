@@ -162,7 +162,7 @@ export function validateRows(kind: UploadKind, leaderboardType: string | null | 
     }
     if (kind === "ALLIANCE_DUEL_DAY") {
       const side = item.side;
-      if (typeof row.points === "number" && row.points < 0) {
+      if (typeof row.points === "number" && (row.points < 0 || !Number.isInteger(row.points))) {
         errors.push({ code: "number", row: rowNumber, field: "points" });
       }
       if (side === undefined || side === null || side === "") {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { CalendarPlus, Save, Trash2 } from "lucide-react";
@@ -11,25 +11,21 @@ function selectClass() {
   return "h-8 rounded-[4px] border border-border-default bg-raised px-2 text-xs text-text-primary";
 }
 
+function localTimePreview(raidDate: string, utcTime: string) {
+  if (!raidDate || !/^\d{2}:\d{2}$/.test(utcTime)) return "";
+  const dt = new Date(`${raidDate}T${utcTime}:00.000Z`);
+  return Number.isNaN(dt.getTime()) ? "" : dt.toLocaleString();
+}
+
 export function ReservoirRaidCreateForm() {
   const t = useTranslations("phase6.reservoirRaid");
   const router = useRouter();
   const [raidDate, setRaidDate] = useState("");
   const [utcTime, setUtcTime] = useState("12:00");
-  const [localPreview, setLocalPreview] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdToken, setCreatedToken] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!raidDate || !/^\d{2}:\d{2}$/.test(utcTime)) {
-      setLocalPreview("");
-      return;
-    }
-    const dt = new Date(`${raidDate}T${utcTime}:00.000Z`);
-    if (Number.isNaN(dt.getTime())) { setLocalPreview(""); return; }
-    setLocalPreview(dt.toLocaleString());
-  }, [raidDate, utcTime]);
+  const localPreview = localTimePreview(raidDate, utcTime);
 
   async function submit() {
     setBusy(true);
@@ -101,17 +97,10 @@ export function ReservoirRaidEditForm({ initial }: { initial: RaidEditInitial })
   const [utcTime, setUtcTime] = useState(initial.startsAtTime);
   const [status, setStatus] = useState(initial.status);
   const [registrationOpen, setRegistrationOpen] = useState(initial.registrationOpen);
-  const [localPreview, setLocalPreview] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!raidDate || !/^\d{2}:\d{2}$/.test(utcTime)) { setLocalPreview(""); return; }
-    const dt = new Date(`${raidDate}T${utcTime}:00.000Z`);
-    if (Number.isNaN(dt.getTime())) { setLocalPreview(""); return; }
-    setLocalPreview(dt.toLocaleString());
-  }, [raidDate, utcTime]);
+  const localPreview = localTimePreview(raidDate, utcTime);
 
   async function save() {
     setBusy(true);

@@ -44,6 +44,10 @@ export function pointValueForDay(dayNumber: number) {
   return 2;
 }
 
+function uploadPoints(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? BigInt(Math.trunc(value)) : BigInt(0);
+}
+
 export function dayLabelKey(dayNumber: number) {
   return `day${dayNumber}` as const;
 }
@@ -106,13 +110,21 @@ export async function applyAllianceDuelDayUpload({
     }
     const allyTotal = matched
       .filter((item) => rowSide(item.row) === "ALLY")
-      .reduce((sum, item) => sum + Number(item.row.points), 0);
+      .reduce((sum, item) => sum + uploadPoints(item.row.points), BigInt(0));
     const enemyTotal = matched
       .filter((item) => rowSide(item.row) === "ENEMY")
-      .reduce((sum, item) => sum + Number(item.row.points), 0);
+      .reduce((sum, item) => sum + uploadPoints(item.row.points), BigInt(0));
     const dayOutcome = isUtcDayReached(addUtcDays(day.date, 1))
       ? calculateOutcome(allyTotal, enemyTotal)
       : day.dayOutcome;
+    const memberIds = [...new Set(matched.map((item) => item.memberId).filter((id): id is string => Boolean(id)))];
+    const members = memberIds.length > 0
+      ? await tx.allianceMember.findMany({
+          where: { id: { in: memberIds } },
+          select: { id: true, username: true },
+        })
+      : [];
+    const memberNameById = new Map(members.map((member) => [member.id, member.username]));
 
     await tx.allianceDuelScore.deleteMany({ where: { dayId: day.id } });
     await tx.allianceDuelScore.createMany({
@@ -122,8 +134,10 @@ export async function applyAllianceDuelDayUpload({
           dayId: day.id,
           side,
           memberId: side === "ALLY" ? item.memberId : null,
-          playerName: String(item.row.playerName),
-          points: Number(item.row.points),
+          playerName: side === "ALLY" && item.memberId
+            ? memberNameById.get(item.memberId) ?? String(item.row.playerName)
+            : String(item.row.playerName),
+          points: uploadPoints(item.row.points),
         };
       }),
     });
@@ -156,7 +170,7 @@ export async function applyAllianceDuelDayUpload({
   }, { timeout: 30_000 });
 }
 
-export function calculateOutcome(allyTotal: number, enemyTotal: number): DuelOutcomeValue {
+export function calculateOutcome(allyTotal: number | bigint, enemyTotal: number | bigint): DuelOutcomeValue {
   if (allyTotal > enemyTotal) return "WIN";
   if (allyTotal < enemyTotal) return "LOSS";
   return "DRAW";

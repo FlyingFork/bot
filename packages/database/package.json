@@ -11,7 +11,9 @@
   "scripts": {
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:studio": "prisma studio --browser none"
+    "db:studio": "prisma studio --browser none",
+    "db:sync-event-names": "node scripts/sync-event-member-names.mjs",
+    "db:sync-event-names:apply": "node scripts/sync-event-member-names.mjs --apply"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

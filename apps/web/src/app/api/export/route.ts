@@ -139,7 +139,7 @@ async function memberDuelRows(memberId: string | null) {
   return instances.map((instance) => {
     const days = [1, 2, 3, 4, 5, 6].map((dayNumber) => {
       const day = instance.days.find((item) => item.dayNumber === dayNumber);
-      return day?.scores[0]?.points ?? null;
+      return day?.scores[0]?.points !== undefined ? Number(day.scores[0].points) : null;
     });
     return {
       week: instance.startDate.toISOString().slice(0, 10),
@@ -175,9 +175,10 @@ async function raidResultRows(planId: string | null): Promise<ExportRow[]> {
   const participants = await prisma.reservoirRaidParticipant.findMany({
     where: { planId },
     orderBy: [{ waterCollected: "desc" }],
+    include: { member: { select: { username: true } } },
   });
   return participants.map((p) => ({
-    playerName: p.username,
+    playerName: p.member?.username ?? p.username,
     waterCollected: p.waterCollected,
   }));
 }
@@ -199,6 +200,7 @@ async function allianceDuelSummaryRows(instanceId: string | null) {
     for (const score of day.scores) {
       const playerName = score.member?.username ?? score.playerName;
       const key = `${score.side}:${playerName}`;
+      const points = Number(score.points);
       const row = totals.get(key) ?? {
         playerName,
         side: score.side,
@@ -210,8 +212,8 @@ async function allianceDuelSummaryRows(instanceId: string | null) {
         day6: null,
         total: 0,
       };
-      row[`day${day.dayNumber}`] = score.points;
-      row.total = Number(row.total ?? 0) + score.points;
+      row[`day${day.dayNumber}`] = points;
+      row.total = Number(row.total ?? 0) + points;
       totals.set(key, row);
     }
   }

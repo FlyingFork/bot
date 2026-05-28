@@ -32,9 +32,21 @@ export async function PATCH(request: NextRequest, context: Params) {
 
     if (body.memberId !== undefined) {
       const member = body.memberId
-        ? await prisma.allianceMember.findUnique({ where: { id: body.memberId } })
+        ? await prisma.allianceMember.findUnique({ where: { id: body.memberId }, select: { id: true, username: true } })
         : null;
       if (body.memberId && !member) return NextResponse.json({ errorCode: "memberNotFound" }, { status: 404 });
+      if (member) {
+        const nameConflict = await prisma.reservoirRaidParticipant.findFirst({
+          where: {
+            planId,
+            username: member.username,
+            id: { not: regId },
+          },
+          select: { id: true },
+        });
+        if (nameConflict) return NextResponse.json({ errorCode: "duplicateParticipantName" }, { status: 409 });
+        data.username = member.username;
+      }
       data.memberId = body.memberId ?? null;
       data.registrationStatus = body.memberId ? "MATCHED" : "UNMATCHED";
     }

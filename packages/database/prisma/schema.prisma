@@ -610,8 +610,8 @@ model AllianceDuelDay {
   pointValue      Int                  @map("point_value")
   hasData         Boolean              @default(false) @map("has_data")
   dayOutcome      DuelOutcome?         @map("day_outcome")
-  allyTotalPoints  Int                  @default(0) @map("ally_total_points")
-  enemyTotalPoints Int                  @default(0) @map("enemy_total_points")
+  allyTotalPoints  BigInt               @default(0) @map("ally_total_points")
+  enemyTotalPoints BigInt               @default(0) @map("enemy_total_points")
   changeRequestId String?              @map("change_request_id")
   scores          AllianceDuelScore[]
 
@@ -627,7 +627,7 @@ model AllianceDuelScore {
   memberId String?         @map("member_id")
   member   AllianceMember? @relation(fields: [memberId], references: [id], onDelete: Cascade)
   playerName String        @default("") @map("player_name")
-  points   Int
+  points   BigInt
 
   @@unique([dayId, memberId])
   @@index([dayId, side])

@@ -152,8 +152,15 @@ export async function POST(request: NextRequest, context: Params) {
       return NextResponse.json({ errorCode: "contactTooLong" }, { status: 400 });
     }
 
+    const canonicalName = matchedMember?.username ?? ingameName;
     const existing = await prisma.reservoirRaidParticipant.findFirst({
-      where: { planId: plan.id, username: ingameName },
+      where: {
+        planId: plan.id,
+        OR: [
+          { username: ingameName },
+          ...(matchedMember ? [{ memberId: matchedMember.id }] : []),
+        ],
+      },
     });
 
     if (existing) {
@@ -165,9 +172,22 @@ export async function POST(request: NextRequest, context: Params) {
         return NextResponse.json({ errorCode: "registrationLocked" }, { status: 409 });
       }
 
+      if (existing.username !== canonicalName) {
+        const nameConflict = await prisma.reservoirRaidParticipant.findFirst({
+          where: {
+            planId: plan.id,
+            username: canonicalName,
+            id: { not: existing.id },
+          },
+          select: { id: true },
+        });
+        if (nameConflict) return NextResponse.json({ errorCode: "registrationLocked" }, { status: 409 });
+      }
+
       await prisma.reservoirRaidParticipant.update({
         where: { id: existing.id },
         data: {
+          username: canonicalName,
           memberId: matchedMember?.id ?? existing.memberId,
           contactType,
           contact,
@@ -186,7 +206,7 @@ export async function POST(request: NextRequest, context: Params) {
       await prisma.reservoirRaidParticipant.create({
         data: {
           planId: plan.id,
-          username: ingameName,
+          username: canonicalName,
           memberId: matchedMember?.id ?? null,
           contactType,
           contact,

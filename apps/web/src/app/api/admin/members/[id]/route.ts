@@ -69,6 +69,34 @@ export async function PATCH(request: NextRequest, context: Params) {
         },
       });
 
+      if (before.username !== username) {
+        await tx.allianceDuelScore.updateMany({
+          where: { memberId: id, side: "ALLY" },
+          data: { playerName: username },
+        });
+
+        const raidParticipants = await tx.reservoirRaidParticipant.findMany({
+          where: { memberId: id, username: { not: username } },
+          select: { id: true, planId: true },
+        });
+        for (const participant of raidParticipants) {
+          const conflict = await tx.reservoirRaidParticipant.findFirst({
+            where: {
+              planId: participant.planId,
+              username,
+              id: { not: participant.id },
+            },
+            select: { id: true },
+          });
+          if (!conflict) {
+            await tx.reservoirRaidParticipant.update({
+              where: { id: participant.id },
+              data: { username },
+            });
+          }
+        }
+      }
+
       await createAuditLog(
         actor.id,
         "MEMBER_EDITED",

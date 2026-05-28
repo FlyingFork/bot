@@ -53,10 +53,24 @@ export async function matchMemberByName(playerName: string) {
 export async function matchParticipantByName(planId: string, playerName: string) {
   const participants = await prisma.reservoirRaidParticipant.findMany({
     where: { planId },
-    select: { id: true, username: true, memberId: true },
+    select: {
+      id: true,
+      username: true,
+      memberId: true,
+      member: {
+        select: {
+          username: true,
+          nameHistory: { select: { name: true } },
+        },
+      },
+    },
   });
   const target = normalizeStr(playerName);
-  return participants.find((p) => normalizeStr(p.username) === target) ?? null;
+  return participants.find((p) => {
+    if (normalizeStr(p.username) === target) return true;
+    if (p.member && normalizeStr(p.member.username) === target) return true;
+    return p.member?.nameHistory.some((history) => normalizeStr(history.name) === target) ?? false;
+  }) ?? null;
 }
 
 export async function applyRaidResultsUpload({
@@ -73,10 +87,38 @@ export async function applyRaidResultsUpload({
   action: string;
 }) {
   void pendingChangeId;
-  const plan = await prisma.reservoirRaidPlan.findUnique({ where: { id: planId }, include: { participants: { select: { id: true, username: true } } } });
+  const plan = await prisma.reservoirRaidPlan.findUnique({
+    where: { id: planId },
+    include: {
+      participants: {
+        select: {
+          id: true,
+          username: true,
+          member: {
+            select: {
+              username: true,
+              nameHistory: { select: { name: true } },
+            },
+          },
+        },
+      },
+    },
+  });
   if (!plan) throw new Error("Raid plan not found");
 
-  const participantsByName = new Map(plan.participants.map((p) => [normalizeStr(p.username), p.id]));
+  const participantsByName = new Map<string, string>();
+  for (const participant of plan.participants) {
+    const names = [
+      participant.username,
+      participant.member?.username,
+      ...(participant.member?.nameHistory.map((history) => history.name) ?? []),
+    ].filter((name): name is string => Boolean(name));
+    for (const name of names) {
+      if (!participantsByName.has(normalizeStr(name))) {
+        participantsByName.set(normalizeStr(name), participant.id);
+      }
+    }
+  }
 
   return prisma.$transaction(async (tx) => {
     for (const row of rows) {

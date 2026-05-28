@@ -125,7 +125,8 @@ export default async function MemberProfilePage({ params, searchParams }: Props)
     memberIds.map((memberId) => {
       const days = [1, 2, 3, 4, 5, 6].map((dayNumber) => {
         const day = instance.days.find((item) => item.dayNumber === dayNumber);
-        return day?.scores.find((score) => score.memberId === memberId)?.points ?? null;
+        const points = day?.scores.find((score) => score.memberId === memberId)?.points;
+        return points !== undefined ? Number(points) : null;
       });
       return {
         instanceId: instance.id,
