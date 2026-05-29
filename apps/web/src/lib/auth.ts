@@ -17,7 +17,10 @@ export const auth = betterAuth({
   trustedOrigins,
   emailAndPassword: { enabled: true },
   plugins: [
-    username({ usernameNormalization: false }),
+    username({
+      usernameNormalization: false,
+      usernameValidator: (u) => /^[\p{L}\p{N}_.]+$/u.test(u),
+    }),
     admin(),
     nextCookies(),
   ],

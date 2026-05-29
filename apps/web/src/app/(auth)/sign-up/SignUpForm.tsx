@@ -47,7 +47,7 @@ export function SignUpForm() {
     setLoading(true);
     try {
       const result = await authClient.signUp.email({
-        email: `${username.toLowerCase()}@tiles.internal`,
+        email: `${crypto.randomUUID()}@tiles.internal`,
         name: ingameName.trim(),
         username,
         password,
