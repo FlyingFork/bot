@@ -34,6 +34,7 @@ export type RaidParticipantRow = {
   contact: string | null;
   registrationStatus: string;
   waterCollected: number | null;
+  squad1Power: number;
   totalSquadPower: number;
   squadPowers: SquadPower[];
   raidReliability: { score: number; participated: number; total: number } | null;
@@ -1051,7 +1052,7 @@ function ParticipantsTab({
   const selectedReservists = matched.filter((p) => p.registrationStatus === "SELECTED_RESERVIST");
   const notSelected = matched.filter((p) => p.registrationStatus === "NOT_SELECTED" || p.registrationStatus === "MATCHED");
 
-  const sorted = (arr: RaidParticipantRow[]) => [...arr].sort((a, b) => b.totalSquadPower - a.totalSquadPower);
+  const sorted = (arr: RaidParticipantRow[]) => [...arr].sort((a, b) => b.squad1Power - a.squad1Power || b.totalSquadPower - a.totalSquadPower);
 
   async function setStatus(participantId: string, status: string) {
     setBusy(true);
@@ -1103,10 +1104,13 @@ function ParticipantsTab({
                   {t(`reservoirRaid.participants.statusLabels.${participant.registrationStatus}`)}
                 </Badge>
               </div>
-              {participant.totalSquadPower > 0 && (
+              {(participant.squad1Power > 0 || participant.totalSquadPower > 0) && (
                 <p className="flex items-center gap-1 text-xs text-text-muted">
                   <Zap className="h-3 w-3 shrink-0" />
-                  {t("reservoirRaid.participants.squadPower")}: {formatPower(participant.totalSquadPower)}
+                  {participant.squad1Power > 0 ? formatPower(participant.squad1Power) : "—"}
+                  {participant.totalSquadPower > 0 && (
+                    <span className="opacity-60">· {formatPower(participant.totalSquadPower)}</span>
+                  )}
                 </p>
               )}
               {participant.memberId && (
@@ -1159,7 +1163,7 @@ function ParticipantsTab({
               <TableHead>
                 <span className="flex items-center gap-1">
                   <Zap className="h-3 w-3" />
-                  {t("reservoirRaid.participants.squadPower")}
+                  {t("reservoirRaid.participants.powerHeader")}
                 </span>
               </TableHead>
               <TableHead>
@@ -1181,7 +1185,12 @@ function ParticipantsTab({
               return (
                 <TableRow key={participant.id}>
                   <TableCell className="font-medium text-text-primary">{participant.username}</TableCell>
-                  <TableCell>{participant.totalSquadPower > 0 ? formatPower(participant.totalSquadPower) : "—"}</TableCell>
+                  <TableCell>
+                    <span className="font-medium tabular-nums">{participant.squad1Power > 0 ? formatPower(participant.squad1Power) : "—"}</span>
+                    {participant.totalSquadPower > 0 && (
+                      <span className="ml-1 text-xs text-text-muted opacity-70 tabular-nums">· {formatPower(participant.totalSquadPower)}</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     {participant.memberId ? (
                       <div className="space-y-0.5">
@@ -1371,7 +1380,7 @@ function MemberRaidView({
 
   const selectedParticipants = raid.participants
     .filter((p) => p.registrationStatus === "SELECTED_PARTICIPANT" || p.registrationStatus === "SELECTED_RESERVIST")
-    .sort((a, b) => b.totalSquadPower - a.totalSquadPower);
+    .sort((a, b) => b.squad1Power - a.squad1Power || b.totalSquadPower - a.totalSquadPower);
 
   const raidStarted = new Date(raid.startsAt) <= new Date();
   const currentSquad1 = myParticipant?.squadPowers.find((s) => s.squadIndex === 1)?.power ?? null;
@@ -1447,7 +1456,7 @@ function MemberRaidView({
               <TableRow>
                 <TableHead>{t("reservoirRaid.registrations.ingameName")}</TableHead>
                 <TableHead>{t("reservoirRaid.participants.status")}</TableHead>
-                <TableHead>{t("reservoirRaid.participants.squadPower")}</TableHead>
+                <TableHead>{t("reservoirRaid.participants.powerHeader")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1461,7 +1470,12 @@ function MemberRaidView({
                         {t(`reservoirRaid.participants.statusLabels.${p.registrationStatus}`)}
                       </Badge>
                     </TableCell>
-                    <TableCell>{p.totalSquadPower > 0 ? formatPower(p.totalSquadPower) : "—"}</TableCell>
+                    <TableCell>
+                      <span className="font-medium tabular-nums">{p.squad1Power > 0 ? formatPower(p.squad1Power) : "—"}</span>
+                      {p.totalSquadPower > 0 && (
+                        <span className="ml-1 text-xs text-text-muted opacity-70 tabular-nums">· {formatPower(p.totalSquadPower)}</span>
+                      )}
+                    </TableCell>
                   </TableRow>
                 );
               })}

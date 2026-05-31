@@ -1551,6 +1551,7 @@
       "participants": {
         "ingameName": "Игровое имя",
         "squadPower": "Общая мощь отрядов",
+        "powerHeader": "S1 / Общая мощь",
         "status": "Статус",
         "action": "Действия",
         "cap": "{participants}/{participantLimit} участников · {reservists}/{reservistLimit} резервистов",
@@ -1607,6 +1608,7 @@
         "autoAssign": "Авто-назначение",
         "autoAssignTitle": "Настройка авто-назначения",
         "autoAssignSummary": "{eligible, plural, one {# подходящий игрок} few {# подходящих игрока} many {# подходящих игроков} other {# подходящего игрока}} / всего назначено: {assigned}",
+        "autoAssignRemainingHint": "{players, plural, one {# игрок} few {# игрока} many {# игроков} other {# игрока}} распределяются поровну между {objectives, plural, one {# оставшейся целью} few {# оставшимися целями} many {# оставшимися целями} other {# оставшейся цели}}",
         "autoAssignApply": "Применить",
         "autoAssignApplying": "Применение...",
         "exportPlan": "Экспорт плана",

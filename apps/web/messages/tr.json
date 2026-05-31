@@ -1551,6 +1551,7 @@
       "participants": {
         "ingameName": "Oyun içi ad",
         "squadPower": "Toplam manga gücü",
+        "powerHeader": "S1 / Toplam güç",
         "status": "Durum",
         "action": "İşlemler",
         "cap": "{participants}/{participantLimit} katılımcı · {reservists}/{reservistLimit} yedek",
@@ -1607,6 +1608,7 @@
         "autoAssign": "Otomatik atama",
         "autoAssignTitle": "Otomatik atama yapılandırması",
         "autoAssignSummary": "{eligible} uygun oyuncu / toplam {assigned} atama",
+        "autoAssignRemainingHint": "{players} oyuncu {objectives} kalan hedefe eşit dağıtılır",
         "autoAssignApply": "Uygula",
         "autoAssignApplying": "Uygulanıyor...",
         "exportPlan": "Planı dışa aktar",

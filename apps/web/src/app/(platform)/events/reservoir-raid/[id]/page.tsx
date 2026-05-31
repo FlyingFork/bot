@@ -130,6 +130,7 @@ export default async function ReservoirRaidDetailPage({ params }: Props) {
       contact: p.contact,
       registrationStatus: p.registrationStatus,
       waterCollected: p.waterCollected,
+      squad1Power: Number(p.squadPowers.find((sq) => sq.squadIndex === 1)?.power ?? 0),
       totalSquadPower: totalSquadPower(p.squadPowers),
       squadPowers: p.squadPowers.map((sq) => ({ squadIndex: sq.squadIndex, power: Number(sq.power) })),
       raidReliability:

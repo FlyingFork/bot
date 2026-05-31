@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { compareParticipantsByTotalPower, isEligibleRaidParticipant, participantTotalPower } from "@/lib/raid-assignment";
+import { compareParticipantsBySquad1Power, isEligibleRaidParticipant, participantSquad1Power, participantTotalPower } from "@/lib/raid-assignment";
 import { formatPower } from "@/lib/power";
 import { TIER_COLORS, getObjectiveName, type ObjectiveLang } from "@/lib/raid-objectives";
 
@@ -64,7 +64,7 @@ export function ObjectiveSheet({
   const objective = obj;
   const tierColor = obj.tier > 0 ? TIER_COLORS[obj.tier as keyof typeof TIER_COLORS] : null;
   const name = getObjectiveName(obj.key, planLang);
-  const assignmentsByTotalPower = [...obj.assignments].sort((a, b) => b.totalSquadPower - a.totalSquadPower || a.playerName.localeCompare(b.playerName));
+  const assignmentsByTotalPower = [...obj.assignments].sort((a, b) => b.squad1Power - a.squad1Power || b.totalSquadPower - a.totalSquadPower || a.playerName.localeCompare(b.playerName));
 
   const participantMap = new Map<string, RaidParticipantRow>(participants.map((p) => [p.id, p]));
 
@@ -89,13 +89,13 @@ export function ObjectiveSheet({
         (participant.memberName?.toLowerCase().includes(query) ?? false),
     );
 
-  const sortByTotalPower = (rows: RaidParticipantRow[]) => [...rows].sort(compareParticipantsByTotalPower);
-  const recommended = sortByTotalPower(candidates).slice(0, 3);
+  const sortBySquad1Power = (rows: RaidParticipantRow[]) => [...rows].sort(compareParticipantsBySquad1Power);
+  const recommended = sortBySquad1Power(candidates).slice(0, 3);
   const recommendedIds = new Set(recommended.map((participant) => participant.id));
-  const available = sortByTotalPower(
+  const available = sortBySquad1Power(
     candidates.filter((participant) => !recommendedIds.has(participant.id) && !assignmentMap.has(participant.id)),
   );
-  const alreadyAssigned = sortByTotalPower(
+  const alreadyAssigned = sortBySquad1Power(
     candidates.filter((participant) => !recommendedIds.has(participant.id) && assignmentMap.has(participant.id)),
   );
   const candidateCount = recommended.length + available.length + alreadyAssigned.length;
@@ -139,7 +139,10 @@ export function ObjectiveSheet({
               <div className="min-w-0 flex-1 space-y-0.5">
                 <p className="text-xs font-semibold text-text-primary">{assignment.playerName}</p>
                 <p className="text-sm font-bold tabular-nums" style={{ color: "#e8a020" }}>
-                  {formatPower(assignment.totalSquadPower)}
+                  {formatPower(assignment.squad1Power)}
+                  {assignment.totalSquadPower > 0 && (
+                    <span className="ml-1 text-xs font-normal text-text-muted opacity-70">· {formatPower(assignment.totalSquadPower)}</span>
+                  )}
                 </p>
                 {fullParticipant?.memberId && (
                   <div className="flex items-center gap-1.5 flex-wrap">
@@ -198,8 +201,11 @@ export function ObjectiveSheet({
           </div>
           <p className="text-xs text-text-muted">{roleLabel(participant.registrationStatus)}</p>
         </div>
-        <span className="shrink-0 text-sm font-semibold tabular-nums" style={{ color: "#e8a020" }}>
-          {formatPower(participantTotalPower(participant))}
+        <span className="shrink-0 text-right">
+          <span className="text-sm font-semibold tabular-nums" style={{ color: "#e8a020" }}>{formatPower(participantSquad1Power(participant))}</span>
+          {participantTotalPower(participant) > 0 && (
+            <span className="block text-[10px] text-text-muted opacity-70 tabular-nums">· {formatPower(participantTotalPower(participant))}</span>
+          )}
         </span>
       </button>
     );

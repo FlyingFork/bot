@@ -5,7 +5,7 @@ import { Droplet, Droplets, GripVertical } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import type { RaidObjectiveRow, RaidParticipantRow } from "@/components/phase6/ReservoirRaidDetail";
-import { participantTotalPower } from "@/lib/raid-assignment";
+import { participantSquad1Power, participantTotalPower } from "@/lib/raid-assignment";
 import { TIER_COLORS, getObjectiveName, type ObjectiveLang } from "@/lib/raid-objectives";
 import { formatPower } from "@/lib/power";
 
@@ -53,8 +53,13 @@ export function ParticipantCard({ participant: p, assignment, planLang, canEdit 
         {/* Row 2: power + objective */}
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-sm font-bold tabular-nums" style={{ color: "#e8a020" }}>
-            {formatPower(participantTotalPower(p))}
+            {formatPower(participantSquad1Power(p))}
           </span>
+          {participantTotalPower(p) > 0 && (
+            <span className="text-xs tabular-nums text-text-muted opacity-70">
+              · {formatPower(participantTotalPower(p))}
+            </span>
+          )}
           {objName ? (
             <span
               className="text-[11px] px-1.5 py-0.5 rounded-full font-medium"

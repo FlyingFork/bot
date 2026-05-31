@@ -5,7 +5,7 @@ import { ArrowDownNarrowWide, ArrowUpNarrowWide, Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { RaidObjectiveRow, RaidParticipantRow } from "@/components/phase6/ReservoirRaidDetail";
 import { Input } from "@/components/ui/input";
-import { compareParticipantsByTotalPower, isEligibleRaidParticipant } from "@/lib/raid-assignment";
+import { compareParticipantsBySquad1Power, isEligibleRaidParticipant } from "@/lib/raid-assignment";
 import type { ObjectiveLang } from "@/lib/raid-objectives";
 import { ParticipantCard } from "./ParticipantCard";
 
@@ -29,7 +29,7 @@ export function ParticipantPanel({ participants, objectives, planLang, canEdit }
   }
 
   function sortParticipants(arr: RaidParticipantRow[]) {
-    const sorted = [...arr].sort(compareParticipantsByTotalPower);
+    const sorted = [...arr].sort(compareParticipantsBySquad1Power);
     return sortDir === "asc" ? sorted.reverse() : sorted;
   }
 

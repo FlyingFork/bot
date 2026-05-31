@@ -6,7 +6,7 @@ import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import type { RaidObjectiveRow, RaidParticipantRow } from "@/components/phase6/ReservoirRaidDetail";
-import { compareObjectivesByPriority, getAutoAssignDefaultCounts } from "@/lib/raid-assignment";
+import { compareObjectivesByPriority, getAutoAssignDefaultCounts, FIXED_OBJECTIVE_COUNTS } from "@/lib/raid-assignment";
 import { TIER_COLORS, getObjectiveName, type ObjectiveLang } from "@/lib/raid-objectives";
 
 type Props = {
@@ -63,6 +63,11 @@ export function AutoAssignDialog({ objectives, participants, planLang, onApply }
 
   const totalAssigned = Object.values(counts).reduce((s, n) => s + n, 0);
 
+  const fixedObjectives = assignable.filter((o) => o.key in FIXED_OBJECTIVE_COUNTS);
+  const fixedTotal = fixedObjectives.reduce((s, o) => s + FIXED_OBJECTIVE_COUNTS[o.key], 0);
+  const remainingObjectives = assignable.filter((o) => !(o.key in FIXED_OBJECTIVE_COUNTS));
+  const playersForRemaining = Math.max(0, eligible.length - fixedTotal);
+
   return (
     <>
       <Button variant="outline" size="sm" onClick={handleOpen}>
@@ -79,6 +84,11 @@ export function AutoAssignDialog({ objectives, participants, planLang, onApply }
                 <p className="text-xs text-text-muted mt-0.5">
                   {t("autoAssignSummary", { eligible: eligible.length, assigned: totalAssigned })}
                 </p>
+                {remainingObjectives.length > 0 && (
+                  <p className="text-xs text-text-muted mt-0.5 opacity-70">
+                    {t("autoAssignRemainingHint", { players: playersForRemaining, objectives: remainingObjectives.length })}
+                  </p>
+                )}
               </div>
               <Dialog.Close className="text-text-muted hover:text-text-primary">
                 <X className="h-4 w-4" />

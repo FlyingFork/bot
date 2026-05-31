@@ -68,7 +68,7 @@ export function MarkerPopover({ objective: obj, participants, planLang, canEdit,
                     <div className="min-w-0">
                       <span className="text-xs font-medium text-text-primary truncate block">{a.playerName}</span>
                       <span className="text-[10px] text-text-muted">
-                        {formatPower(a.squad1Power)} · {a.registrationStatus === "SELECTED_PARTICIPANT" ? "P" : "R"}
+                        {formatPower(a.squad1Power)} · <span className="opacity-70">{formatPower(a.totalSquadPower)}</span> · {a.registrationStatus === "SELECTED_PARTICIPANT" ? "P" : "R"}
                       </span>
                     </div>
                     {canEdit && (
@@ -100,23 +100,20 @@ export function MarkerPopover({ objective: obj, participants, planLang, canEdit,
                   />
                 )}
                 <div className="max-h-40 overflow-y-auto space-y-0.5">
-                  {participantsFirst.map((p) => {
-                    const squad1 = p.squadPowers.find((s) => s.squadIndex === 1)?.power ?? 0;
-                    return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        disabled={isPending}
-                        onClick={() => { onAssign(obj.id, p.id); setSearch(""); }}
-                        className="w-full flex items-center justify-between px-2 py-1 rounded hover:bg-raised text-left"
-                      >
-                        <span className="text-xs text-text-primary truncate">{p.username}</span>
-                        <span className="text-[10px] text-text-muted shrink-0 ml-2">
-                          {formatPower(squad1)} · {p.registrationStatus === "SELECTED_PARTICIPANT" ? "P" : "R"}
-                        </span>
-                      </button>
-                    );
-                  })}
+                  {participantsFirst.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => { onAssign(obj.id, p.id); setSearch(""); }}
+                      className="w-full flex items-center justify-between px-2 py-1 rounded hover:bg-raised text-left"
+                    >
+                      <span className="text-xs text-text-primary truncate">{p.username}</span>
+                      <span className="text-[10px] text-text-muted shrink-0 ml-2">
+                        {formatPower(p.squad1Power)} · <span className="opacity-70">{formatPower(p.totalSquadPower)}</span> · {p.registrationStatus === "SELECTED_PARTICIPANT" ? "P" : "R"}
+                      </span>
+                    </button>
+                  ))}
                 </div>
               </div>
             )}

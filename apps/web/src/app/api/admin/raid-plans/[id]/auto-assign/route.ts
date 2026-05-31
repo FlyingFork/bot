@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@tiles-survive/database";
 import { createAuditLog } from "@/lib/audit";
-import { compareObjectivesByPriority, compareParticipantsByTotalPower, participantTotalPower } from "@/lib/raid-assignment";
+import { compareObjectivesByPriority, compareParticipantsBySquad1Power } from "@/lib/raid-assignment";
 import { apiError, requireMinRole } from "@/lib/server-auth";
 
 type Params = { params: Promise<{ id: string }> };
@@ -54,24 +54,18 @@ export async function POST(request: NextRequest, context: Params) {
       .filter((assignment): assignment is { objective: (typeof objectives)[number]; count: number } => !!assignment.objective)
       .sort((a, b) => compareObjectivesByPriority(a.objective, b.objective));
 
+    const toParticipantLike = (p: (typeof participants)[number]) => ({
+      ...p,
+      squad1Power: Number(p.squadPowers.find((sq) => sq.squadIndex === 1)?.power ?? 0),
+      totalSquadPower: p.squadPowers.reduce((sum, sq) => sum + Number(sq.power), 0),
+    });
+
     const mainParticipants = participants
       .filter((p) => p.registrationStatus === "SELECTED_PARTICIPANT")
-      .sort((a, b) => compareParticipantsByTotalPower({
-        ...a,
-        totalSquadPower: participantTotalPower(a),
-      }, {
-        ...b,
-        totalSquadPower: participantTotalPower(b),
-      }));
+      .sort((a, b) => compareParticipantsBySquad1Power(toParticipantLike(a), toParticipantLike(b)));
     const reservists = participants
       .filter((p) => p.registrationStatus === "SELECTED_RESERVIST")
-      .sort((a, b) => compareParticipantsByTotalPower({
-        ...a,
-        totalSquadPower: participantTotalPower(a),
-      }, {
-        ...b,
-        totalSquadPower: participantTotalPower(b),
-      }));
+      .sort((a, b) => compareParticipantsBySquad1Power(toParticipantLike(a), toParticipantLike(b)));
     const pool = [...mainParticipants, ...reservists];
 
     let cursor = 0;

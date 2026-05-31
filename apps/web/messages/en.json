@@ -1551,6 +1551,7 @@
       "participants": {
         "ingameName": "In-game name",
         "squadPower": "Total squad power",
+        "powerHeader": "S1 / Total power",
         "status": "Status",
         "action": "Actions",
         "cap": "{participants}/{participantLimit} participants · {reservists}/{reservistLimit} reservists",
@@ -1607,6 +1608,7 @@
         "autoAssign": "Auto-assign",
         "autoAssignTitle": "Auto-assign configuration",
         "autoAssignSummary": "{eligible, plural, one {# eligible player} other {# eligible players}} / {assigned} assigned total",
+        "autoAssignRemainingHint": "{players, plural, one {# player} other {# players}} distributed equally across {objectives, plural, one {# remaining objective} other {# remaining objectives}}",
         "autoAssignApply": "Apply",
         "autoAssignApplying": "Applying...",
         "exportPlan": "Export plan",
