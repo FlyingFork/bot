@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronLeft, Search, X } from "lucide-react";
+import { ChevronLeft, Droplet, Droplets, Search, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { RaidObjectiveRow, RaidParticipantRow } from "@/components/phase6/ReservoirRaidDetail";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,15 @@ import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from "@/comp
 import { compareParticipantsByTotalPower, isEligibleRaidParticipant, participantTotalPower } from "@/lib/raid-assignment";
 import { formatPower } from "@/lib/power";
 import { TIER_COLORS, getObjectiveName, type ObjectiveLang } from "@/lib/raid-objectives";
+
+function formatWater(value: number) {
+  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B`;
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K`;
+  return String(value);
+}
+
+type Assignment = RaidObjectiveRow["assignments"][number];
 
 type Props = {
   objective: RaidObjectiveRow | null;
@@ -56,6 +65,11 @@ export function ObjectiveSheet({
   const tierColor = obj.tier > 0 ? TIER_COLORS[obj.tier as keyof typeof TIER_COLORS] : null;
   const name = getObjectiveName(obj.key, planLang);
   const assignmentsByTotalPower = [...obj.assignments].sort((a, b) => b.totalSquadPower - a.totalSquadPower || a.playerName.localeCompare(b.playerName));
+
+  const participantMap = new Map<string, RaidParticipantRow>(participants.map((p) => [p.id, p]));
+
+  const assignedParticipants = assignmentsByTotalPower.filter((a) => a.registrationStatus === "SELECTED_PARTICIPANT");
+  const assignedReservists = assignmentsByTotalPower.filter((a) => a.registrationStatus === "SELECTED_RESERVIST");
 
   const currentObjectiveIds = new Set(obj.assignments.map((assignment) => assignment.participantId));
   const assignmentMap = new Map<string, RaidObjectiveRow>();
@@ -106,6 +120,60 @@ export function ObjectiveSheet({
     setPendingMove(null);
     setSelectOpen(false);
     onOpenChange(false);
+  }
+
+  function renderAssignedCategory(title: string, rows: Assignment[]) {
+    if (rows.length === 0) return null;
+    return (
+      <div className="space-y-1.5">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary px-0.5">
+          {title} ({rows.length})
+        </p>
+        {rows.map((assignment) => {
+          const fullParticipant = participantMap.get(assignment.participantId);
+          return (
+            <div
+              key={assignment.participantId}
+              className="flex items-start justify-between gap-2 rounded-md border border-border-subtle bg-raised px-3 py-2"
+            >
+              <div className="min-w-0 flex-1 space-y-0.5">
+                <p className="text-xs font-semibold text-text-primary">{assignment.playerName}</p>
+                <p className="text-sm font-bold tabular-nums" style={{ color: "#e8a020" }}>
+                  {formatPower(assignment.totalSquadPower)}
+                </p>
+                {fullParticipant?.memberId && (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {fullParticipant.lastWaterCollected !== null && (
+                      <span className="flex items-center gap-1 rounded-md bg-surface px-2 py-0.5 text-[11px] text-text-muted">
+                        <Droplet className="h-2.5 w-2.5 text-sky-400 shrink-0" />
+                        {fullParticipant.lastWaterCollected.toLocaleString()}
+                      </span>
+                    )}
+                    {fullParticipant.totalWaterCollected !== null && (
+                      <span className="flex items-center gap-1 rounded-md bg-surface px-2 py-0.5 text-[11px] text-text-muted">
+                        <Droplets className="h-2.5 w-2.5 text-sky-400 shrink-0" />
+                        {formatWater(fullParticipant.totalWaterCollected)}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+              {canEdit && (
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => onUnassign(obj!.id, assignment.participantId)}
+                  className="mt-0.5 shrink-0 text-text-muted hover:text-cn-danger"
+                  aria-label={t("removeAssignment")}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
   }
 
   function renderParticipantButton(participant: RaidParticipantRow) {
@@ -168,35 +236,13 @@ export function ObjectiveSheet({
           </SheetHeader>
 
           <div className="flex-1 space-y-4 overflow-y-auto p-4">
-            {obj.assignments.length > 0 && (
-              <div className="space-y-2">
+            {(assignedParticipants.length > 0 || assignedReservists.length > 0) && (
+              <div className="space-y-3">
                 <p className="text-xs font-semibold text-text-secondary">
                   {t("assignedPlayers")} ({obj.assignments.length})
                 </p>
-                {assignmentsByTotalPower.map((assignment) => (
-                  <div
-                    key={assignment.participantId}
-                    className="flex items-center justify-between gap-2 rounded-md border border-border-subtle bg-raised px-3 py-2"
-                  >
-                    <div>
-                      <p className="text-xs font-medium text-text-primary">{assignment.playerName}</p>
-                      <p className="text-[10px] text-text-muted">
-                        {formatPower(assignment.totalSquadPower)} · {roleLabel(assignment.registrationStatus)}
-                      </p>
-                    </div>
-                    {canEdit && (
-                      <button
-                        type="button"
-                        disabled={isPending}
-                        onClick={() => onUnassign(obj.id, assignment.participantId)}
-                        className="text-text-muted hover:text-cn-danger"
-                        aria-label={t("removeAssignment")}
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                ))}
+                {renderAssignedCategory(t("participantCategory"), assignedParticipants)}
+                {renderAssignedCategory(t("reservistCategory"), assignedReservists)}
               </div>
             )}
 

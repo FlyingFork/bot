@@ -49,5 +49,15 @@ export function useAssignments(planId: string) {
     }
   }
 
-  return { assign, unassign, autoAssign, isPending };
+  async function resetAssignments() {
+    setIsPending(true);
+    try {
+      await fetch(`/api/admin/raid-plans/${planId}/assignments`, { method: "DELETE" });
+      router.refresh();
+    } finally {
+      setIsPending(false);
+    }
+  }
+
+  return { assign, unassign, autoAssign, resetAssignments, isPending };
 }

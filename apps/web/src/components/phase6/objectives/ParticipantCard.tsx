@@ -38,23 +38,26 @@ export function ParticipantCard({ participant: p, assignment, planLang, canEdit 
   return (
     <div
       ref={setNodeRef}
-      className="flex items-center gap-2 rounded-md border border-border-subtle bg-surface px-3 py-2 transition-opacity"
+      className={`flex items-start gap-2 rounded-md border border-border-subtle bg-surface px-3 py-2.5 transition-opacity ${isReservist ? "border-l-[3px] border-l-cn-warning/70" : "border-l-[3px] border-l-transparent"}`}
       style={{ opacity: isDragging ? 0.4 : 1 }}
     >
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 space-y-1">
+        {/* Row 1: name + role badge */}
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-xs font-semibold text-text-primary truncate">{p.username}</span>
+          <span className="text-sm font-semibold text-text-primary truncate">{p.username}</span>
           {isReservist && (
-            <Badge variant="warning" className="text-[9px] px-1 py-0">R</Badge>
+            <Badge variant="warning" className="text-[10px] px-1.5 py-0">R</Badge>
           )}
         </div>
-        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-          <span className="text-[11px] font-semibold tabular-nums" style={{ color: "#e8a020" }}>
+
+        {/* Row 2: power + objective */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-sm font-bold tabular-nums" style={{ color: "#e8a020" }}>
             {formatPower(participantTotalPower(p))}
           </span>
           {objName ? (
             <span
-              className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+              className="text-[11px] px-1.5 py-0.5 rounded-full font-medium"
               style={{
                 color: tierColor?.text ?? "#6b7fa0",
                 backgroundColor: tierColor?.bg ?? "rgba(107,127,160,0.12)",
@@ -63,33 +66,36 @@ export function ParticipantCard({ participant: p, assignment, planLang, canEdit 
               {objName}
             </span>
           ) : (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium text-text-muted bg-raised">
+            <span className="text-[11px] px-1.5 py-0.5 rounded-full font-medium text-text-muted bg-raised">
               {t("reservoirRaid.objectives.unassigned")}
             </span>
           )}
         </div>
-        {p.memberId && (
-          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-            <span className="flex items-center gap-0.5 text-[10px] text-text-muted">
-              <Droplet className="h-2.5 w-2.5 text-sky-400 shrink-0" />
-              {p.lastWaterCollected !== null
-                ? p.lastWaterCollected.toLocaleString()
-                : t("common.unknown")}
-            </span>
-            <span className="flex items-center gap-0.5 text-[10px] text-text-muted">
-              <Droplets className="h-2.5 w-2.5 text-sky-400 shrink-0" />
-              {p.totalWaterCollected !== null
-                ? formatWater(p.totalWaterCollected)
-                : t("common.unknown")}
-            </span>
+
+        {/* Row 3: water stats */}
+        {(p.lastWaterCollected !== null || p.totalWaterCollected !== null) && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {p.lastWaterCollected !== null && (
+              <span className="flex items-center gap-1 rounded-md bg-raised px-2 py-0.5 text-[11px] text-text-muted">
+                <Droplet className="h-2.5 w-2.5 text-sky-400 shrink-0" />
+                {p.lastWaterCollected.toLocaleString()}
+              </span>
+            )}
+            {p.totalWaterCollected !== null && (
+              <span className="flex items-center gap-1 rounded-md bg-raised px-2 py-0.5 text-[11px] text-text-muted">
+                <Droplets className="h-2.5 w-2.5 text-sky-400 shrink-0" />
+                {formatWater(p.totalWaterCollected)}
+              </span>
+            )}
           </div>
         )}
       </div>
+
       {canEdit && (
         <div
           {...attributes}
           {...listeners}
-          className="text-text-muted hover:text-text-primary cursor-grab active:cursor-grabbing shrink-0"
+          className="mt-0.5 text-text-muted hover:text-text-primary cursor-grab active:cursor-grabbing shrink-0"
         >
           <GripVertical className="h-4 w-4" />
         </div>

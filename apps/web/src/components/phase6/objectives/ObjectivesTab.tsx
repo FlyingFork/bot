@@ -2,9 +2,18 @@
 
 import { useState } from "react";
 import { DndContext, type DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
-import { AlertTriangle, ChevronDown, ChevronUp, Info } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronUp, Info, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { RaidObjectiveRow, RaidParticipantRow } from "@/components/phase6/ReservoirRaidDetail";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { ObjectiveLang } from "@/lib/raid-objectives";
 import { getObjectiveName } from "@/lib/raid-objectives";
 import { RaidMap } from "./RaidMap";
@@ -62,11 +71,15 @@ function ObjectiveEffectsPanel({ planLang }: { planLang: ObjectiveLang }) {
 }
 
 export function ObjectivesTab({ planId, raidDate, startsAt, objectives, participants, isAdmin, role, planLang }: Props) {
-  const { assign, unassign, autoAssign, isPending } = useAssignments(planId);
+  const t = useTranslations("phase6.reservoirRaid.objectives");
+  const { assign, unassign, autoAssign, resetAssignments, isPending } = useAssignments(planId);
 
   // Single sheet state used by both desktop (click marker) and mobile (tap marker or list)
   const [sheetObjectiveId, setSheetObjectiveId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+
+  const totalAssignments = objectives.reduce((s, o) => s + o.assignments.length, 0);
 
   const canManage = isAdmin || role === "r4" || role === "r5";
   const isLocked = new Date() >= new Date(startsAt);
@@ -113,6 +126,17 @@ export function ObjectivesTab({ planId, raidDate, startsAt, objectives, particip
             participants={participants}
             defaultLang={planLang}
           />
+          {canEdit && totalAssignments > 0 && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setResetDialogOpen(true)}
+              disabled={isPending}
+            >
+              <Trash2 />
+              {t("resetAssignments")}
+            </Button>
+          )}
         </div>
 
         {/* Objective bonuses reference */}
@@ -196,6 +220,33 @@ export function ObjectivesTab({ planId, raidDate, startsAt, objectives, particip
           onAssign={assign}
           onUnassign={unassign}
         />
+
+        <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t("resetConfirmTitle")}</DialogTitle>
+              <DialogDescription>
+                {t("resetConfirmDescription", { count: totalAssignments })}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex-col-reverse sm:flex-row">
+              <Button variant="ghost" onClick={() => setResetDialogOpen(false)} className="w-full sm:w-auto">
+                {t("resetCancel")}
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={isPending}
+                onClick={async () => {
+                  setResetDialogOpen(false);
+                  await resetAssignments();
+                }}
+                className="w-full sm:w-auto"
+              >
+                {t("resetConfirm")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DndContext>
   );
