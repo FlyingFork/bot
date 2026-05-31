@@ -1043,6 +1043,36 @@ export function AllianceDuelDetail({ duel, isAdmin, userMemberId }: { duel: Duel
 
   return (
     <div className="space-y-5">
+      {(duel.outcome || duel.status === "ENDED") && (
+        <div
+          className="rounded-md border px-4 py-3 flex flex-wrap items-center gap-3"
+          style={{
+            borderColor:
+              duel.outcome === "WIN" ? "rgba(52,199,123,0.3)" :
+              duel.outcome === "LOSS" ? "rgba(224,82,82,0.3)" :
+              "var(--color-border-subtle)",
+            backgroundColor:
+              duel.outcome === "WIN" ? "var(--color-success-bg)" :
+              duel.outcome === "LOSS" ? "var(--color-danger-bg)" :
+              "var(--color-surface)",
+          }}
+        >
+          <Badge variant="secondary">{t("statusValues.ENDED")}</Badge>
+          {duel.outcome && (
+            <span
+              className="text-sm font-bold"
+              style={{
+                color:
+                  duel.outcome === "WIN" ? "var(--color-success)" :
+                  duel.outcome === "LOSS" ? "var(--color-danger)" :
+                  "#e8a020",
+              }}
+            >
+              {t("instanceOutcome")}: {t(`outcomes.${duel.outcome}`)}
+            </span>
+          )}
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-2">
           <Button variant={tab === "days" ? "default" : "tab"} onClick={() => setTab("days")}>

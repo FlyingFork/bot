@@ -198,7 +198,7 @@ export async function recalculateAllianceDuelInstance(instanceId: string, client
   }
 
   const hasData = instance.days.some((day) => day.hasData);
-  const canCalculateInstance = hasData && isUtcDayReached(addUtcDays(instance.endDate, 1));
+  const canCalculateInstance = hasData && isUtcDayReached(instance.endDate);
   const outcome = canCalculateInstance ? calculateOutcome(allyEventPoints, enemyEventPoints) : instance.outcome;
   const status = canCalculateInstance ? "ENDED" : instance.status;
   if (outcome !== instance.outcome || status !== instance.status) {

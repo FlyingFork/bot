@@ -4,7 +4,9 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { Check, Copy, Droplet, Droplets, Edit, Plus, Trash2, Upload, UserCheck, Zap } from "lucide-react";
+import { Check, Copy, Droplet, Droplets, Edit, FileUp, Pencil, Plus, Search, Trash2, Upload, UserCheck, UserPlus, Zap } from "lucide-react";
+import { toast } from "sonner";
+import { RAID_REGISTRATION_PROMPT } from "@/lib/upload-prompts";
 import { TimeDisplay } from "@/components/TimeDisplay";
 import { ExportButton } from "@/components/phase4/ExportButton";
 import { Badge } from "@/components/ui/badge";
@@ -99,13 +101,553 @@ function contactLabel(type: string | null, handle: string | null) {
 }
 
 function selectClass() {
-  return "h-8 rounded-[4px] border border-border-default bg-raised px-2 text-xs text-text-primary";
+  return "h-8 w-full rounded-[4px] border border-border-default bg-raised px-2 text-xs text-text-primary";
+}
+
+function parseSquadPower(raw: string): number | null {
+  const s = raw.trim().toUpperCase();
+  if (!s) return null;
+  if (s.endsWith("M")) {
+    const n = parseFloat(s.slice(0, -1).trimEnd());
+    return isNaN(n) || n <= 0 ? null : Math.round(n * 1_000_000);
+  }
+  if (s.endsWith("K")) {
+    const n = parseFloat(s.slice(0, -1).trimEnd());
+    return isNaN(n) || n <= 0 ? null : Math.round(n * 1_000);
+  }
+  return null;
+}
+
+function powerToInput(value: number): string {
+  if (value >= 1_000_000) {
+    const m = value / 1_000_000;
+    return `${Number.isInteger(m) ? m : m.toFixed(1)}M`;
+  }
+  if (value >= 1_000) return `${Math.round(value / 1_000)}K`;
+  return `${value}K`;
 }
 
 function statusBadgeVariant(status: string) {
   if (status === "SELECTED_PARTICIPANT") return "success" as const;
   if (status === "SELECTED_RESERVIST") return "warning" as const;
   return "secondary" as const;
+}
+
+// ─────────────────────────────────────────────
+// Input style helpers
+// ─────────────────────────────────────────────
+
+const inputCls = "h-8 w-full min-w-0 rounded-md border border-border-line bg-surface-2 px-3 py-1 text-sm text-text font-sans placeholder:text-dim transition-colors outline-none focus-visible:border-gold focus-visible:ring-2 focus-visible:ring-gold-bg disabled:opacity-40";
+const textareaCls = "w-full min-w-0 rounded-md border border-border-line bg-surface-2 px-3 py-2 text-sm text-text font-sans placeholder:text-dim transition-colors outline-none focus-visible:border-gold focus-visible:ring-2 focus-visible:ring-gold-bg disabled:opacity-40 resize-none";
+const nativeSelectCls = "h-8 w-full rounded-md border border-border-line bg-surface-2 px-2 text-sm text-text font-sans transition-colors outline-none focus-visible:border-gold disabled:opacity-40";
+
+// ─────────────────────────────────────────────
+// AddPlayerModal
+// ─────────────────────────────────────────────
+
+function AddPlayerModal({ planId, open, onClose }: { planId: string; open: boolean; onClose: () => void }) {
+  const t = useTranslations("phase6");
+  const router = useRouter();
+  const [username, setUsername] = useState("");
+  const [squads, setSquads] = useState<string[]>(["", "", "", "", ""]);
+  const [squadErrors, setSquadErrors] = useState<boolean[]>([false, false, false, false, false]);
+  const [visibleCount, setVisibleCount] = useState(1);
+  const [contactType, setContactType] = useState("");
+  const [contact, setContact] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  function reset() {
+    setUsername("");
+    setSquads(["", "", "", "", ""]);
+    setSquadErrors([false, false, false, false, false]);
+    setVisibleCount(1);
+    setContactType("");
+    setContact("");
+  }
+
+  function updateSquad(index: number, value: string) {
+    setSquads((prev) => { const next = [...prev]; next[index] = value; return next; });
+    if (squadErrors[index]) setSquadErrors((prev) => { const next = [...prev]; next[index] = false; return next; });
+  }
+
+  function handleSquadBlur(index: number, value: string) {
+    if (!value.trim()) return;
+    if (parseSquadPower(value) === null) {
+      setSquadErrors((prev) => { const next = [...prev]; next[index] = true; return next; });
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!username.trim()) return;
+
+    const errors = [false, false, false, false, false];
+    const squadPowers: { squadIndex: number; power: number }[] = [];
+    let hasError = false;
+    for (let i = 0; i < 5; i++) {
+      if (!squads[i].trim()) continue;
+      const parsed = parseSquadPower(squads[i]);
+      if (parsed === null) { errors[i] = true; hasError = true; }
+      else squadPowers.push({ squadIndex: i + 1, power: parsed });
+    }
+    if (hasError) { setSquadErrors(errors); return; }
+
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/raid-plans/${planId}/registrations`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          username: username.trim(),
+          squadPowers: squadPowers.length > 0 ? squadPowers : undefined,
+          contactType: contactType || null,
+          contact: contact.trim() || null,
+        }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { errorCode?: string };
+        toast.error(
+          data.errorCode === "alreadyExists"
+            ? "A player with this name is already registered."
+            : "Failed to add player. Please try again.",
+        );
+        return;
+      }
+      toast.success(t("reservoirRaid.registrations.playerAdded"));
+      reset();
+      onClose();
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => { if (!next) { reset(); onClose(); } }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t("reservoirRaid.registrations.addPlayerTitle")}</DialogTitle>
+          <DialogDescription>{t("reservoirRaid.registrations.addPlayerDescription")}</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit}>
+          <div className="px-4 space-y-3 pb-2">
+            <label className="block space-y-1 text-xs font-medium text-text-secondary">
+              {t("reservoirRaid.registrations.ingameName")} *
+              <Input maxLength={80} required value={username} onChange={(e) => setUsername(e.target.value)} placeholder="PlayerName" />
+            </label>
+
+            {Array.from({ length: visibleCount }).map((_, i) => (
+              <div key={i} className="space-y-1">
+                <label className="block text-xs font-medium text-text-secondary">
+                  {t("reservoirRaid.registrations.squadPowerLabel", { squad: i + 1 })}
+                </label>
+                <Input
+                  value={squads[i]}
+                  onChange={(e) => updateSquad(i, e.target.value)}
+                  onBlur={(e) => handleSquadBlur(i, e.target.value)}
+                  placeholder={i === 0 ? "e.g. 28.88M" : "e.g. 875K"}
+                />
+                {squadErrors[i] && (
+                  <p className="text-[11px] text-cn-danger leading-tight">{t("reservoirRaid.registrations.powerFormatError")}</p>
+                )}
+              </div>
+            ))}
+            <p className="text-[11px] text-text-muted leading-relaxed">{t("registration.powerHint")}</p>
+            {visibleCount < 5 && (
+              <Button type="button" variant="ghost" size="sm" onClick={() => setVisibleCount((n) => n + 1)}>
+                <Plus />
+                {t("registration.addSquad", { squad: visibleCount + 1 })}
+              </Button>
+            )}
+
+            <label className="block space-y-1 text-xs font-medium text-text-secondary">
+              {t("registration.contactPlatform")}
+              <select className={selectClass()} value={contactType} onChange={(e) => { setContactType(e.target.value); if (!e.target.value) setContact(""); }}>
+                <option value="">{t("registration.noContact")}</option>
+                <option value="DISCORD">Discord</option>
+                <option value="TELEGRAM">Telegram</option>
+              </select>
+            </label>
+            {contactType && (
+              <label className="block space-y-1 text-xs font-medium text-text-secondary">
+                {t("registration.contactUsername")}
+                <Input maxLength={80} value={contact} onChange={(e) => setContact(e.target.value)} />
+              </label>
+            )}
+          </div>
+          <DialogFooter className="flex-col-reverse sm:flex-row">
+            <Button type="button" variant="ghost" onClick={() => { reset(); onClose(); }} className="w-full sm:w-auto">
+              {t("common.cancel")}
+            </Button>
+            <Button type="submit" disabled={busy || !username.trim()} className="w-full sm:w-auto">
+              {busy ? t("reservoirRaid.registrations.saving") : t("reservoirRaid.registrations.savePlayer")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─────────────────────────────────────────────
+// EditPlayerModal
+// ─────────────────────────────────────────────
+
+function EditPlayerModal({
+  planId,
+  participant,
+  members,
+  open,
+  onClose,
+}: {
+  planId: string;
+  participant: RaidParticipantRow;
+  members: MemberOption[];
+  open: boolean;
+  onClose: () => void;
+}) {
+  const t = useTranslations("phase6");
+  const router = useRouter();
+
+  const initialSquads = (() => {
+    const arr = ["", "", "", "", ""];
+    for (const sq of participant.squadPowers) {
+      if (sq.squadIndex >= 1 && sq.squadIndex <= 5) arr[sq.squadIndex - 1] = powerToInput(sq.power);
+    }
+    return arr;
+  })();
+  const initialVisibleCount = (() => {
+    const lastFilled = participant.squadPowers.length > 0
+      ? Math.max(...participant.squadPowers.map((sq) => sq.squadIndex))
+      : 0;
+    return Math.min(5, Math.max(1, lastFilled + (lastFilled < 5 ? 1 : 0)));
+  })();
+
+  const [username, setUsername] = useState(participant.username);
+  const [squads, setSquads] = useState<string[]>(initialSquads);
+  const [squadErrors, setSquadErrors] = useState<boolean[]>([false, false, false, false, false]);
+  const [visibleCount, setVisibleCount] = useState(initialVisibleCount);
+  const [contactType, setContactType] = useState(participant.contactType ?? "");
+  const [contact, setContact] = useState(participant.contact ?? "");
+  const [registrationStatus, setRegistrationStatus] = useState(participant.registrationStatus);
+  const [memberSearch, setMemberSearch] = useState("");
+  const [selectedMemberId, setSelectedMemberId] = useState(participant.memberId ?? "");
+  const [busy, setBusy] = useState(false);
+
+  const filteredMembers = useMemo(
+    () => members.filter((m) => m.username.toLowerCase().includes(memberSearch.toLowerCase())),
+    [members, memberSearch],
+  );
+
+  function updateSquad(index: number, value: string) {
+    setSquads((prev) => { const next = [...prev]; next[index] = value; return next; });
+    if (squadErrors[index]) setSquadErrors((prev) => { const next = [...prev]; next[index] = false; return next; });
+  }
+
+  function handleSquadBlur(index: number, value: string) {
+    if (!value.trim()) return;
+    if (parseSquadPower(value) === null) {
+      setSquadErrors((prev) => { const next = [...prev]; next[index] = true; return next; });
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!username.trim()) return;
+
+    const errors = [false, false, false, false, false];
+    const squadPowers: { squadIndex: number; power: number }[] = [];
+    let hasError = false;
+    for (let i = 0; i < 5; i++) {
+      if (!squads[i].trim()) continue;
+      const parsed = parseSquadPower(squads[i]);
+      if (parsed === null) { errors[i] = true; hasError = true; }
+      else squadPowers.push({ squadIndex: i + 1, power: parsed });
+    }
+    if (hasError) { setSquadErrors(errors); return; }
+
+    setBusy(true);
+    try {
+      const payload: Record<string, unknown> = {
+        username: username.trim(),
+        squadPowers,
+        contactType: contactType || null,
+        contact: contact.trim() || null,
+        registrationStatus,
+      };
+      if (selectedMemberId !== (participant.memberId ?? "")) {
+        payload.memberId = selectedMemberId || null;
+      }
+
+      const res = await fetch(`/api/admin/raid-plans/${planId}/registrations/${participant.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { errorCode?: string };
+        toast.error(
+          data.errorCode === "usernameTaken"
+            ? "A player with this name is already registered."
+            : "Failed to update. Please try again.",
+        );
+        return;
+      }
+      toast.success(t("reservoirRaid.registrations.playerUpdated"));
+      onClose();
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const showMemberAssign =
+    participant.registrationStatus === "UNMATCHED" ||
+    username.trim() !== participant.username;
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{t("reservoirRaid.registrations.editPlayerTitle")}</DialogTitle>
+          <DialogDescription>{t("reservoirRaid.registrations.editPlayerDescription")}</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit}>
+          <div className="px-4 space-y-3 pb-2">
+            <label className="block space-y-1 text-xs font-medium text-text-secondary">
+              {t("reservoirRaid.registrations.ingameName")} *
+              <Input maxLength={80} required value={username} onChange={(e) => setUsername(e.target.value)} />
+            </label>
+
+            {Array.from({ length: visibleCount }).map((_, i) => (
+              <div key={i} className="space-y-1">
+                <label className="block text-xs font-medium text-text-secondary">
+                  {t("reservoirRaid.registrations.squadPowerLabel", { squad: i + 1 })}
+                </label>
+                <Input
+                  value={squads[i]}
+                  onChange={(e) => updateSquad(i, e.target.value)}
+                  onBlur={(e) => handleSquadBlur(i, e.target.value)}
+                  placeholder={i === 0 ? "e.g. 28.88M" : "e.g. 875K"}
+                />
+                {squadErrors[i] && (
+                  <p className="text-[11px] text-cn-danger leading-tight">{t("reservoirRaid.registrations.powerFormatError")}</p>
+                )}
+              </div>
+            ))}
+            <p className="text-[11px] text-text-muted leading-relaxed">{t("registration.powerHint")}</p>
+            {visibleCount < 5 && (
+              <Button type="button" variant="ghost" size="sm" onClick={() => setVisibleCount((n) => n + 1)}>
+                <Plus />
+                {t("registration.addSquad", { squad: visibleCount + 1 })}
+              </Button>
+            )}
+
+            <label className="block space-y-1 text-xs font-medium text-text-secondary">
+              {t("registration.contactPlatform")}
+              <select className={selectClass()} value={contactType} onChange={(e) => { setContactType(e.target.value); if (!e.target.value) setContact(""); }}>
+                <option value="">{t("registration.noContact")}</option>
+                <option value="DISCORD">Discord</option>
+                <option value="TELEGRAM">Telegram</option>
+              </select>
+            </label>
+            {contactType && (
+              <label className="block space-y-1 text-xs font-medium text-text-secondary">
+                {t("registration.contactUsername")}
+                <Input maxLength={80} value={contact} onChange={(e) => setContact(e.target.value)} />
+              </label>
+            )}
+
+            <div className="border-t border-border-subtle pt-3 space-y-3">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-text-muted">
+                {t("reservoirRaid.registrations.status")}
+              </p>
+              <label className="block space-y-1 text-xs font-medium text-text-secondary">
+                {t("reservoirRaid.participants.status")}
+                <select className={selectClass()} value={registrationStatus} onChange={(e) => setRegistrationStatus(e.target.value)}>
+                  <option value="UNMATCHED">{t("reservoirRaid.registrations.statusValues.UNMATCHED")}</option>
+                  <option value="MATCHED">{t("reservoirRaid.registrations.statusValues.MATCHED")}</option>
+                  <option value="SELECTED_PARTICIPANT">{t("reservoirRaid.registrations.statusValues.SELECTED_PARTICIPANT")}</option>
+                  <option value="SELECTED_RESERVIST">{t("reservoirRaid.registrations.statusValues.SELECTED_RESERVIST")}</option>
+                  <option value="NOT_SELECTED">{t("reservoirRaid.registrations.statusValues.NOT_SELECTED")}</option>
+                </select>
+              </label>
+              {showMemberAssign && (
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-text-secondary">
+                    {t("reservoirRaid.registrations.assignMember")}
+                  </label>
+                  <Input
+                    placeholder={t("reservoirRaid.registrations.searching")}
+                    value={memberSearch}
+                    onChange={(e) => setMemberSearch(e.target.value)}
+                  />
+                  <div className="max-h-36 overflow-auto rounded border border-border-dim bg-raised">
+                    <button
+                      type="button"
+                      className={`w-full px-3 py-1.5 text-left text-xs text-text-muted hover:bg-surface ${selectedMemberId === "" ? "font-semibold" : ""}`}
+                      onClick={() => setSelectedMemberId("")}
+                    >
+                      — {t("reservoirRaid.registrations.statusValues.UNMATCHED")}
+                    </button>
+                    {filteredMembers.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        className={`w-full px-3 py-1.5 text-left text-xs text-text-primary hover:bg-surface ${selectedMemberId === m.id ? "font-semibold" : ""}`}
+                        onClick={() => setSelectedMemberId(m.id)}
+                      >
+                        {m.username}
+                        {selectedMemberId === m.id && " ✓"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter className="flex-col-reverse sm:flex-row">
+            <Button type="button" variant="ghost" onClick={onClose} className="w-full sm:w-auto">
+              {t("common.cancel")}
+            </Button>
+            <Button type="submit" disabled={busy || !username.trim()} className="w-full sm:w-auto">
+              {busy ? t("reservoirRaid.registrations.saving") : t("reservoirRaid.registrations.saveChanges")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─────────────────────────────────────────────
+// ImportParticipantsModal
+// ─────────────────────────────────────────────
+
+type ImportEntry = { name: string; participant: boolean; reservist: boolean };
+
+function ImportParticipantsModal({ planId, open, onClose }: { planId: string; open: boolean; onClose: () => void }) {
+  const t = useTranslations("phase6");
+  const router = useRouter();
+  const [raw, setRaw] = useState("");
+  const [promptCopied, setPromptCopied] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ created: number; updated: number; matched: number } | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+
+  const parsed = useMemo<ImportEntry[] | null>(() => {
+    if (!raw.trim()) return null;
+    try {
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return null;
+      return (arr as ImportEntry[]).filter((e) => typeof e.name === "string" && e.name.trim());
+    } catch {
+      return null;
+    }
+  }, [raw]);
+
+  const parseError = raw.trim() && parsed === null;
+
+  function reset() {
+    setRaw("");
+    setResult(null);
+    setImportError(null);
+  }
+
+  async function handleImport() {
+    if (!parsed || parsed.length === 0) return;
+    setBusy(true);
+    setImportError(null);
+    setResult(null);
+    try {
+      const res = await fetch(`/api/admin/raid-plans/${planId}/import-participants`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ players: parsed }),
+      });
+      if (!res.ok) {
+        setImportError(t("reservoirRaid.registrations.importJsonError"));
+        return;
+      }
+      const data = (await res.json()) as { created: number; updated: number; matched: number };
+      setResult(data);
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function copyPrompt() {
+    navigator.clipboard.writeText(RAID_REGISTRATION_PROMPT).catch(() => {});
+    setPromptCopied(true);
+    setTimeout(() => setPromptCopied(false), 2000);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => { if (!next) { reset(); onClose(); } }}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{t("reservoirRaid.registrations.importTitle")}</DialogTitle>
+          <DialogDescription>{t("reservoirRaid.registrations.importDescription")}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 pt-1">
+          <div className="rounded-md border border-border-dim bg-raised p-3 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold text-text-muted">{t("reservoirRaid.registrations.aiPromptTitle")}</p>
+              <Button size="sm" variant="ghost" onClick={copyPrompt}>
+                {promptCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                {promptCopied ? t("reservoirRaid.registrations.aiPromptCopied") : t("reservoirRaid.registrations.aiPromptCopy")}
+              </Button>
+            </div>
+            <pre className="text-[10px] text-text-muted whitespace-pre-wrap break-words leading-relaxed">{RAID_REGISTRATION_PROMPT}</pre>
+          </div>
+
+          <div className="space-y-1">
+            <textarea
+              className={textareaCls}
+              rows={5}
+              value={raw}
+              onChange={(e) => { setRaw(e.target.value); setResult(null); setImportError(null); }}
+              placeholder={t("reservoirRaid.registrations.jsonPlaceholder")}
+            />
+            {parseError && <p className="text-xs text-cn-danger">{t("reservoirRaid.registrations.importJsonError")}</p>}
+            {parsed && parsed.length > 0 && (
+              <p className="text-xs text-text-muted">{t("reservoirRaid.registrations.importPreview", { count: parsed.length })}</p>
+            )}
+          </div>
+
+          {parsed && parsed.length > 0 && (
+            <div className="max-h-40 overflow-auto rounded border border-border-dim bg-raised">
+              {parsed.map((entry, i) => (
+                <div key={i} className="flex items-center justify-between px-2 py-1 text-xs text-text-primary border-b border-border-dim last:border-0">
+                  <span>{entry.name}</span>
+                  <div className="flex gap-1">
+                    {entry.participant && <Badge variant="success">{t("reservoirRaid.registrations.statusValues.SELECTED_PARTICIPANT")}</Badge>}
+                    {entry.reservist && <Badge variant="warning">{t("reservoirRaid.registrations.statusValues.SELECTED_RESERVIST")}</Badge>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {importError && <p className="text-xs text-cn-danger">{importError}</p>}
+          {result && (
+            <p className="text-xs text-cn-success">
+              {t("reservoirRaid.registrations.importSuccess", { created: result.created, updated: result.updated, matched: result.matched })}
+            </p>
+          )}
+        </div>
+        <DialogFooter className="flex-col-reverse sm:flex-row">
+          <Button variant="ghost" onClick={() => { reset(); onClose(); }} className="w-full sm:w-auto">
+            {t("common.cancel")}
+          </Button>
+          <Button disabled={busy || !parsed || parsed.length === 0} onClick={handleImport} className="w-full sm:w-auto">
+            {busy ? t("reservoirRaid.registrations.importing") : t("reservoirRaid.registrations.importSubmit")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 // ─────────────────────────────────────────────
@@ -126,6 +668,7 @@ type ParticipantCardProps = {
   onSetAssignMemberId: (id: string) => void;
   onAssignMember: (participantId: string) => void;
   onDeleteRegistration: (participantId: string) => void;
+  onEditParticipant: (participant: RaidParticipantRow) => void;
 };
 
 function ParticipantCard({
@@ -142,6 +685,7 @@ function ParticipantCard({
   onSetAssignMemberId,
   onAssignMember,
   onDeleteRegistration,
+  onEditParticipant,
 }: ParticipantCardProps) {
   const t = useTranslations("phase6");
   const [pendingConfirm, setPendingConfirm] = useState(false);
@@ -245,10 +789,14 @@ function ParticipantCard({
               </div>
             </div>
           ) : (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button size="sm" variant="secondary" onClick={() => onSetAssigningId(participant.id)}>
                 <UserCheck />
                 {t("reservoirRaid.registrations.assignMember")}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => onEditParticipant(participant)} disabled={busy}>
+                <Pencil />
+                {t("reservoirRaid.registrations.editPlayerTitle")}
               </Button>
               <Button size="sm" variant="ghost" onClick={() => onDeleteRegistration(participant.id)} disabled={busy}>
                 <Trash2 />
@@ -260,10 +808,16 @@ function ParticipantCard({
       )}
 
       {isAdmin && !showAssign && (
-        <Button size="sm" variant="ghost" onClick={() => onDeleteRegistration(participant.id)} disabled={busy}>
-          <Trash2 />
-          {t("reservoirRaid.registrations.delete")}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="ghost" onClick={() => onEditParticipant(participant)} disabled={busy}>
+            <Pencil />
+            {t("reservoirRaid.registrations.editPlayerTitle")}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => onDeleteRegistration(participant.id)} disabled={busy}>
+            <Trash2 />
+            {t("reservoirRaid.registrations.delete")}
+          </Button>
+        </div>
       )}
     </div>
 
@@ -317,11 +871,21 @@ function RegistrationsTab({
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [assignMemberId, setAssignMemberId] = useState("");
   const [search, setSearch] = useState("");
+  const [nameFilter, setNameFilter] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [editingParticipant, setEditingParticipant] = useState<RaidParticipantRow | null>(null);
 
-  const matched = participants.filter((p) => p.registrationStatus !== "UNMATCHED");
-  const unmatched = participants.filter((p) => p.registrationStatus === "UNMATCHED");
-  const showWarning = showUnmatchedWarning && unmatched.length > 0;
+  const nameFilterLower = nameFilter.toLowerCase();
+  const allUnmatched = participants.filter((p) => p.registrationStatus === "UNMATCHED");
+  const matched = participants.filter((p) => p.registrationStatus !== "UNMATCHED" && (
+    !nameFilterLower || p.username.toLowerCase().includes(nameFilterLower) || (p.memberName ?? "").toLowerCase().includes(nameFilterLower)
+  ));
+  const unmatched = allUnmatched.filter((p) =>
+    !nameFilterLower || p.username.toLowerCase().includes(nameFilterLower) || (p.memberName ?? "").toLowerCase().includes(nameFilterLower)
+  );
+  const showWarning = showUnmatchedWarning && allUnmatched.length > 0;
 
   async function assignMember(participantId: string) {
     if (!assignMemberId) return;
@@ -358,9 +922,34 @@ function RegistrationsTab({
 
   return (
     <div className="space-y-4">
+      {isAdmin && (
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="secondary" onClick={() => setShowAddModal(true)}>
+            <UserPlus />
+            {t("reservoirRaid.registrations.addPlayer")}
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => setShowImportModal(true)}>
+            <FileUp />
+            {t("reservoirRaid.registrations.importJson")}
+          </Button>
+        </div>
+      )}
+
+      {participants.length > 0 && (
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-muted pointer-events-none" />
+          <Input
+            className="pl-8"
+            placeholder={t("reservoirRaid.registrations.searchByName")}
+            value={nameFilter}
+            onChange={(e) => setNameFilter(e.target.value)}
+          />
+        </div>
+      )}
+
       {showWarning && (
         <div className="rounded-md border border-cn-warning/40 bg-cn-warning/10 px-4 py-3 text-sm text-cn-warning">
-          {t("reservoirRaid.registrations.unmatchedWarning", { count: unmatched.length })}
+          {t("reservoirRaid.registrations.unmatchedWarning", { count: allUnmatched.length })}
         </div>
       )}
 
@@ -386,6 +975,7 @@ function RegistrationsTab({
                 onSetAssignMemberId={setAssignMemberId}
                 onAssignMember={assignMember}
                 onDeleteRegistration={deleteRegistration}
+                onEditParticipant={setEditingParticipant}
               />
             ))}
           </div>
@@ -414,6 +1004,7 @@ function RegistrationsTab({
                 onSetAssignMemberId={setAssignMemberId}
                 onAssignMember={assignMember}
                 onDeleteRegistration={deleteRegistration}
+                onEditParticipant={setEditingParticipant}
               />
             ))}
           </div>
@@ -422,6 +1013,18 @@ function RegistrationsTab({
 
       {participants.length === 0 && (
         <p className="text-sm text-text-muted">{t("reservoirRaid.registrations.empty")}</p>
+      )}
+
+      <AddPlayerModal planId={planId} open={showAddModal} onClose={() => setShowAddModal(false)} />
+      <ImportParticipantsModal planId={planId} open={showImportModal} onClose={() => setShowImportModal(false)} />
+      {editingParticipant && (
+        <EditPlayerModal
+          planId={planId}
+          participant={editingParticipant}
+          members={members}
+          open={true}
+          onClose={() => setEditingParticipant(null)}
+        />
       )}
     </div>
   );

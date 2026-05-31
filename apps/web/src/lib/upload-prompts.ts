@@ -98,3 +98,12 @@ Return ONLY the JSON array, no markdown, no extra text.`,
 } as const;
 
 export type UploadPromptKey = keyof typeof UPLOAD_PROMPTS;
+
+export const RAID_REGISTRATION_PROMPT = `Parse the attached screenshot of the Reservoir Raid sign-up or participant list and return a JSON array.
+Include every visible player that is either a participant or reservist, do not include players that do not have at least checkbox checked.
+Each entry must follow this format: [{ "name": "PlayerName", "participant": true, "reservist": false }]
+The names of the players don't have new lines, it's just raw text, don't include the alliance tag.
+"participant" is true if the player is listed as a main participant, false otherwise.
+"reservist" is true if the player is listed as a reservist or backup, false otherwise.
+If a player is neither, set both to false. The participant is the first checkbox and reservist is the second checkbox on the X axis.
+Return ONLY the JSON array, no markdown, no extra text.`;
