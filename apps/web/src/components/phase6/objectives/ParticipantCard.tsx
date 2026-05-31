@@ -1,7 +1,7 @@
 "use client";
 
 import { useDraggable } from "@dnd-kit/core";
-import { Droplet, Droplets, GripVertical } from "lucide-react";
+import { Clock, Droplet, Droplets, GripVertical, Trophy } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import type { RaidObjectiveRow, RaidParticipantRow } from "@/components/phase6/ReservoirRaidDetail";
@@ -14,6 +14,20 @@ function formatWater(value: number) {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
   if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K`;
   return String(value);
+}
+
+function formatScore(value: number | null) {
+  if (value === null) return null;
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K`;
+  return String(value);
+}
+
+function tierColorClass(tier: "high" | "mid" | "low" | "none") {
+  if (tier === "high") return "text-emerald-400";
+  if (tier === "mid") return "text-amber-400";
+  if (tier === "low") return "text-red-400";
+  return "text-text-muted";
 }
 
 type Props = {
@@ -77,7 +91,29 @@ export function ParticipantCard({ participant: p, assignment, planLang, canEdit 
           )}
         </div>
 
-        {/* Row 3: water stats */}
+        {/* Row 3: RRS + composite score */}
+        {(p.reservoirRaidScore !== null || p.compositeScore > 0) && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Trophy className="h-2.5 w-2.5 text-text-muted shrink-0" />
+            {p.reservoirRaidScore !== null ? (
+              <span className={`text-[11px] font-medium tabular-nums ${tierColorClass(p.compositeScoreTier)}`}>
+                {formatScore(p.reservoirRaidScore)}
+              </span>
+            ) : (
+              <span className="text-[11px] text-text-muted">—</span>
+            )}
+            {p.isScoreStale && (
+              <span title={t("reservoirRaid.participants.scoreStaleWarning")}>
+                <Clock className="h-2.5 w-2.5 text-amber-400 shrink-0" />
+              </span>
+            )}
+            <span className="text-[11px] text-text-muted opacity-60">
+              · {p.compositeScore.toFixed(1)}
+            </span>
+          </div>
+        )}
+
+        {/* Row 4: water stats */}
         {(p.lastWaterCollected !== null || p.totalWaterCollected !== null) && (
           <div className="flex items-center gap-1.5 flex-wrap">
             {p.lastWaterCollected !== null && (

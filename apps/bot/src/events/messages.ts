@@ -1,4 +1,5 @@
 import {
+  AttachmentBuilder,
   ChannelType,
   type Client,
   type Message,
@@ -68,12 +69,28 @@ export async function translateMessage(message: Message, options: { bypassCooldo
   }
 
   const sourceText = messageTextWithStickers(message.content, message.stickers.values());
-  const files = [...message.attachments.values()].map((attachment) => attachment.url);
   const username = message.member?.displayName ?? message.author.username;
   const avatarURL = message.member?.displayAvatarURL() ?? message.author.displayAvatarURL();
 
+  const detected = sourceText.trim() ? await detectLanguage(sourceText, message.guild.id) : null;
+
+  // If the detected language doesn't match the configured language for every group this channel
+  // belongs to, and the message is long enough to detect reliably, auto-correct by sending the
+  // proper translations to all channels (including source) and deleting the original.
+  if (
+    message.channel.type !== ChannelType.PublicThread &&
+    message.channel.type !== ChannelType.AnnouncementThread &&
+    sourceText.trim().length >= 10 &&
+    detected !== null &&
+    context.every((item) => detected !== item.source.language)
+  ) {
+    await handleWrongLanguageMessage(message, context, detected, username, avatarURL, sourceText);
+    return;
+  }
+
+  const files = [...message.attachments.values()].map((attachment) => attachment.url);
+
   for (const item of context) {
-    const detected = sourceText.trim() ? await detectLanguage(sourceText, message.guild.id) : null;
     const sourceLanguage = detected ?? item.source.language;
 
     for (const target of item.targets) {
@@ -121,6 +138,94 @@ export async function translateMessage(message: Message, options: { bypassCooldo
       });
     }
   }
+}
+
+async function downloadAttachments(message: Message): Promise<AttachmentBuilder[]> {
+  const builders: AttachmentBuilder[] = [];
+  for (const attachment of message.attachments.values()) {
+    try {
+      const response = await fetch(attachment.url);
+      const buffer = Buffer.from(await response.arrayBuffer());
+      builders.push(new AttachmentBuilder(buffer, { name: attachment.name }));
+    } catch (error) {
+      logger.warn({ error, url: attachment.url }, "failed to download attachment for wrong-language correction");
+    }
+  }
+  return builders;
+}
+
+async function handleWrongLanguageMessage(
+  message: Message,
+  context: TranslationContext[],
+  detectedLanguage: Language,
+  username: string,
+  avatarURL: string,
+  sourceText: string
+): Promise<void> {
+  const attachmentBuilders = await downloadAttachments(message);
+  // Track sent message IDs per channel to avoid duplicate sends when a channel belongs to multiple groups
+  const sentByChannelId = new Map<string, string[]>();
+
+  for (const item of context) {
+    const allChannels = [item.source, ...item.targets];
+
+    for (const groupChannel of allChannels) {
+      if (sentByChannelId.has(groupChannel.channelId)) continue;
+
+      const discordChannel = groupChannel.channelId === message.channel.id
+        ? (canUseWebhook(message.channel) ? message.channel : null)
+        : await resolveTargetChannel(message, groupChannel.channelId);
+      if (!discordChannel) continue;
+
+      let chunks: string[];
+      if (!sourceText.trim()) {
+        chunks = [" "];
+      } else if (groupChannel.language === detectedLanguage) {
+        chunks = [sourceText];
+      } else {
+        const result = await translateText(sourceText, detectedLanguage, groupChannel.language, message.guild!.id);
+        chunks = result.chunks;
+      }
+
+      const sentIds: string[] = [];
+      for (const [index, chunk] of chunks.entries()) {
+        const sentId = await sendWebhookMessage({
+          channel: discordChannel,
+          content: chunk || " ",
+          username,
+          avatarURL,
+          files: index === 0 && attachmentBuilders.length > 0 ? attachmentBuilders : undefined
+        });
+        sentIds.push(sentId);
+      }
+
+      sentByChannelId.set(groupChannel.channelId, sentIds);
+    }
+
+    // Store MessageMaps using the corrected webhook message in the source channel as the new source,
+    // so that delete-cascade still works if the user deletes the corrected message.
+    const correctedSourceIds = sentByChannelId.get(message.channel.id);
+    if (!correctedSourceIds || correctedSourceIds.length === 0) continue;
+
+    for (const target of item.targets) {
+      const targetIds = sentByChannelId.get(target.channelId);
+      if (!targetIds || targetIds.length === 0) continue;
+
+      await prisma.messageMap.create({
+        data: {
+          guildId: message.guild!.id,
+          groupId: item.groupId,
+          sourceChannelId: message.channel.id,
+          sourceMessageId: correctedSourceIds[0],
+          targetChannelId: target.channelId,
+          targetMessageIds: targetIds
+        }
+      });
+    }
+  }
+
+  // Delete the original after all corrections are sent. Fails silently if bot lacks permission.
+  await message.delete().catch(() => undefined);
 }
 
 async function handleMessageUpdate(message: Message | PartialMessage): Promise<void> {

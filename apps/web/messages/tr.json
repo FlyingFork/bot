@@ -688,7 +688,8 @@
       "profile": "Profil",
       "signOut": "Çıkış yap",
       "notificationLabel": "Bildirimler",
-      "users": "Users"
+      "users": "Users",
+      "rrsScores": "Baskın Puanı"
     },
     "leaderboardTypes": {
       "SOLO_POWER": "Solo Güç",
@@ -959,6 +960,7 @@
       "rosterUpdate": "Kadro Güncellemesi",
       "allianceDuelDay": "İttifak Düellosu günü",
       "raidResults": "Rezervuar Baskını sonuçları",
+      "raidScores": "Rezervuar Baskını puanları",
       "leaderboardType": "Liderlik türü",
       "duelInstance": "Düello",
       "duelDay": "Düello günü",
@@ -1152,7 +1154,14 @@
       "explorationLevel": "Keşif seviyesi",
       "collectionPower": "Koleksiyon gücü",
       "totalPower": "Toplam güç",
-      "allianceRank": "İttifak rütbesi"
+      "allianceRank": "İttifak rütbesi",
+      "reservoirRaidScore": "Baskın Puanı",
+      "squad1Power": "Takım 1 Gücü",
+      "totalSquadPower": "Toplam Takım Gücü",
+      "compositeScore": "Bileşik Puan",
+      "raidReliability": "Güvenilirlik (%)",
+      "lastWaterCollected": "Son Su",
+      "totalWaterCollected": "Toplam Su"
     },
     "leaderboards": {
       "title": "Liderlikler",
@@ -1466,6 +1475,7 @@
       "registrationClosed": "Kayıt kapalı",
       "openRegistration": "Kaydı aç",
       "closeRegistration": "Kaydı kapat",
+      "uploadScores": "Puan Yükle",
       "participantsLabel": "Katılımcılar",
       "action": "İşlem",
       "open": "Aç",
@@ -1552,6 +1562,15 @@
         "ingameName": "Oyun içi ad",
         "squadPower": "Toplam manga gücü",
         "powerHeader": "S1 / Toplam güç",
+        "rrsHeader": "Baskın Puanı",
+        "compositeHeader": "Bileşik",
+        "compositeAbbr": "BP",
+        "compositeScoreInfo": "Bileşik puan = Baskın Puanı (%50) + 1. Manga Gücü (%50), her biri etkinlikteki en yüksek değere göre normalize edilir",
+        "scoreStaleWarning": "Puan güncel olmayabilir (son güncelleme 1,5 haftadan önce)",
+        "sortBy": "Sırala",
+        "sortComposite": "Bileşik puan",
+        "sortSquad1": "1. manga gücü",
+        "sortRRS": "Baskın puanı",
         "status": "Durum",
         "action": "İşlemler",
         "cap": "{participants}/{participantLimit} katılımcı · {reservists}/{reservistLimit} yedek",
@@ -1626,6 +1645,7 @@
           "squadPower": "Manga Gücü",
           "role": "Rol"
         },
+        "here": "Burada",
         "effectsTitle": "Hedef Bonusları",
         "effects": {
           "abandoned_helipad": "Yer Değiştirici Bekleme Süresi −%50",
@@ -1650,6 +1670,28 @@
         "hasParticipants": "Bu baskının katılımcıları var ve silinemez.",
         "generic": "İşlem başarısız oldu. Tekrar deneyin."
       }
+    },
+    "rrsLeaderboard": {
+      "title": "Baskın Puanı Liderliği",
+      "subtitle": "Rezervuar Baskını Puanına göre sıralanmış ittifak üyeleri.",
+      "searchPlaceholder": "İsme göre ara...",
+      "status": "Durum",
+      "allStatuses": "Tüm durumlar",
+      "rank": "Sıra",
+      "member": "Üye",
+      "allianceRank": "İttifak Rütbesi",
+      "score": "Puan",
+      "lastUpdated": "Son güncelleme",
+      "noScore": "Puan yok",
+      "staleHint": "Puan güncel olmayabilir (>1.5 hafta)",
+      "noResults": "Bu aramada üye bulunamadı.",
+      "memberSection": "Rezervuar Baskını Puanı",
+      "noScoreRecorded": "Henüz puan kaydedilmedi.",
+      "scoreHistory": "Puan geçmişi",
+      "historyDate": "Tarih",
+      "historyScore": "Puan",
+      "historyRecordedBy": "Kaydeden",
+      "noHistory": "Puan geçmişi yok."
     },
     "registration": {
       "title": "Rezervuar Baskını Kaydı",

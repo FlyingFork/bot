@@ -688,7 +688,8 @@
       "profile": "Профиль",
       "signOut": "Выйти",
       "notificationLabel": "Уведомления",
-      "users": "Users"
+      "users": "Users",
+      "rrsScores": "Рейтинг рейда"
     },
     "leaderboardTypes": {
       "SOLO_POWER": "Одиночная сила",
@@ -959,6 +960,7 @@
       "rosterUpdate": "Обновление состава",
       "allianceDuelDay": "День дуэли альянсов",
       "raidResults": "Результаты рейда резервуара",
+      "raidScores": "Рейтинги рейда резервуара",
       "leaderboardType": "Тип рейтинга",
       "duelInstance": "Дуэль",
       "duelDay": "День дуэли",
@@ -1152,7 +1154,14 @@
       "explorationLevel": "Уровень исследования",
       "collectionPower": "Сила коллекции",
       "totalPower": "Общая сила",
-      "allianceRank": "Ранг в альянсе"
+      "allianceRank": "Ранг в альянсе",
+      "reservoirRaidScore": "Рейтинг рейда",
+      "squad1Power": "Мощь отряда 1",
+      "totalSquadPower": "Общая мощь отрядов",
+      "compositeScore": "Составной рейтинг",
+      "raidReliability": "Надёжность (%)",
+      "lastWaterCollected": "Последняя вода",
+      "totalWaterCollected": "Всего воды"
     },
     "leaderboards": {
       "title": "Рейтинги",
@@ -1466,6 +1475,7 @@
       "registrationClosed": "Регистрация закрыта",
       "openRegistration": "Открыть регистрацию",
       "closeRegistration": "Закрыть регистрацию",
+      "uploadScores": "Загрузить рейтинг",
       "participantsLabel": "Участники",
       "action": "Действие",
       "open": "Открыть",
@@ -1552,6 +1562,15 @@
         "ingameName": "Игровое имя",
         "squadPower": "Общая мощь отрядов",
         "powerHeader": "S1 / Общая мощь",
+        "rrsHeader": "Рейтинг рейда",
+        "compositeHeader": "Сводный",
+        "compositeAbbr": "СБ",
+        "compositeScoreInfo": "Сводный балл = Рейтинг рейда (50%) + Мощь 1 отряда (50%), каждый нормализован к максимальному значению в событии",
+        "scoreStaleWarning": "Балл может быть устаревшим (последнее обновление — более 1,5 недель назад)",
+        "sortBy": "Сортировка",
+        "sortComposite": "Сводный балл",
+        "sortSquad1": "Мощь 1 отряда",
+        "sortRRS": "Рейтинг рейда",
         "status": "Статус",
         "action": "Действия",
         "cap": "{participants}/{participantLimit} участников · {reservists}/{reservistLimit} резервистов",
@@ -1626,6 +1645,7 @@
           "squadPower": "Мощь отряда",
           "role": "Роль"
         },
+        "here": "Здесь",
         "effectsTitle": "Бонусы целей",
         "effects": {
           "abandoned_helipad": "Перезарядка Перемещателя −50%",
@@ -1650,6 +1670,28 @@
         "hasParticipants": "В этом рейде есть участники, удаление невозможно.",
         "generic": "Действие не выполнено. Попробуйте снова."
       }
+    },
+    "rrsLeaderboard": {
+      "title": "Рейтинг рейда на водохранилище",
+      "subtitle": "Участники альянса, отсортированные по рейтингу рейда на водохранилище.",
+      "searchPlaceholder": "Поиск по имени...",
+      "status": "Статус",
+      "allStatuses": "Все статусы",
+      "rank": "Место",
+      "member": "Участник",
+      "allianceRank": "Ранг",
+      "score": "Рейтинг",
+      "lastUpdated": "Обновлено",
+      "noScore": "Нет рейтинга",
+      "staleHint": "Рейтинг может быть устаревшим (>1,5 недели)",
+      "noResults": "Участники по запросу не найдены.",
+      "memberSection": "Рейтинг рейда на водохранилище",
+      "noScoreRecorded": "Рейтинг ещё не записан.",
+      "scoreHistory": "История рейтинга",
+      "historyDate": "Дата",
+      "historyScore": "Рейтинг",
+      "historyRecordedBy": "Кем записано",
+      "noHistory": "История рейтинга отсутствует."
     },
     "registration": {
       "title": "Регистрация на рейд водохранилища",

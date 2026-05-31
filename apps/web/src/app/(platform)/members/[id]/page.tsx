@@ -13,6 +13,7 @@ import { MemberProfileActions } from "@/components/phase2/MemberProfileActions";
 import type { MemberSummary } from "@/components/phase2/types";
 import { EmptyState, formatDate, roleLabel, statusBadge } from "@/components/phase2/Phase2Utils";
 import { getContributionScores, latestPowerFromEntryData } from "@/lib/phase4";
+import { RRS_STALE_THRESHOLD_MS } from "@/lib/phase6-constants";
 import { LEADERBOARD_VALUE_FIELDS, isPhase4LeaderboardType, numberFromEntryData } from "@/lib/phase4-shared";
 import {
   MemberProfilePhase4,
@@ -22,6 +23,7 @@ import {
   type RaidHistoryRow,
   type RankPoint,
 } from "@/components/phase4/MemberProfilePhase4";
+import { Clock } from "lucide-react";
 import { MemberComparePicker, type CompareMemberOption } from "@/components/phase4/MemberComparePicker";
 
 type Props = {
@@ -35,6 +37,7 @@ export default async function MemberProfilePage({ params, searchParams }: Props)
   const common = await getTranslations("phase2.common");
   const statusT = await getTranslations("phase2.status");
   const rolesT = await getTranslations("phase2.roles");
+  const rrsT = await getTranslations("phase6.rrsLeaderboard");
   const user = await getCurrentUser();
   const { id } = await params;
   const { compare } = await searchParams;
@@ -66,7 +69,7 @@ export default async function MemberProfilePage({ params, searchParams }: Props)
     : null;
   const profileMembers = [member, compareMember].filter(Boolean) as Array<{ id: string; username: string }>;
   const memberIds = profileMembers.map((item) => item.id);
-  const [contributionScores, leaderboardEntries, duelInstances, raidParticipants, compareOptions] = await Promise.all([
+  const [contributionScores, leaderboardEntries, duelInstances, raidParticipants, compareOptions, scoreHistory] = await Promise.all([
     getContributionScores(memberIds),
     prisma.leaderboardEntry.findMany({
       where: { memberId: { in: memberIds } },
@@ -95,6 +98,11 @@ export default async function MemberProfilePage({ params, searchParams }: Props)
           select: { id: true, username: true, currentPower: true },
         })
       : Promise.resolve([]),
+    prisma.reservoirRaidScoreHistory.findMany({
+      where: { memberId: id },
+      orderBy: { recordedAt: "desc" },
+      take: 10,
+    }),
   ]);
 
   const powerPoints: PowerPoint[] = leaderboardEntries
@@ -148,6 +156,19 @@ export default async function MemberProfilePage({ params, searchParams }: Props)
     status: participant.registrationStatus,
     waterCollected: participant.waterCollected,
   }));
+
+  const recorderIds = [...new Set(scoreHistory.map((h) => h.recordedById).filter(Boolean) as string[])];
+  const recorders = recorderIds.length
+    ? await prisma.user.findMany({
+        where: { id: { in: recorderIds } },
+        select: { id: true, username: true, name: true },
+      })
+    : [];
+  const recorderMap = new Map(recorders.map((u) => [u.id, u.username ?? u.name ?? null]));
+
+  const rrsIsStale = member.reservoirRaidScore !== null && member.reservoirRaidScoreUpdatedAt !== null
+    ? Date.now() - member.reservoirRaidScoreUpdatedAt.getTime() > RRS_STALE_THRESHOLD_MS
+    : false;
 
   const serializedMember = jsonSafe(member) as MemberSummary & {
     nameHistory: Array<{ id: string; name: string; changedAt: string }>;
@@ -251,6 +272,55 @@ export default async function MemberProfilePage({ params, searchParams }: Props)
             </div>
           ) : (
             <EmptyState>{t("noLinkedAccount")}</EmptyState>
+          )}
+        </section>
+      )}
+
+      {(canViewFull || isOwnProfile) && (
+        <section className="rounded-md border border-border-subtle bg-surface p-4 space-y-3">
+          <h2 className="text-sm font-bold text-text-primary">{rrsT("memberSection")}</h2>
+          {member.reservoirRaidScore !== null ? (
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-bold text-text-primary tabular-nums">
+                {member.reservoirRaidScore.toLocaleString()}
+              </span>
+              {rrsIsStale && (
+                <span className="flex items-center gap-1 text-xs text-cn-warning">
+                  <Clock className="h-3.5 w-3.5" />
+                  {rrsT("staleHint")}
+                </span>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-text-muted">{rrsT("noScoreRecorded")}</p>
+          )}
+          {scoreHistory.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-text-secondary">{rrsT("scoreHistory")}</p>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{rrsT("historyDate")}</TableHead>
+                    <TableHead>{rrsT("historyScore")}</TableHead>
+                    <TableHead>{rrsT("historyRecordedBy")}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {scoreHistory.map((entry) => (
+                    <TableRow key={entry.id}>
+                      <TableCell>{formatDate(entry.recordedAt)}</TableCell>
+                      <TableCell className="font-semibold tabular-nums">{entry.score.toLocaleString()}</TableCell>
+                      <TableCell className="text-text-secondary">
+                        {entry.recordedById ? (recorderMap.get(entry.recordedById) ?? "—") : "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+          {scoreHistory.length === 0 && member.reservoirRaidScore !== null && (
+            <p className="text-xs text-text-muted">{rrsT("noHistory")}</p>
           )}
         </section>
       )}

@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@tiles-survive/database";
 import { createAuditLog } from "@/lib/audit";
-import { compareObjectivesByPriority, compareParticipantsBySquad1Power } from "@/lib/raid-assignment";
+import {
+  compareObjectivesByPriority,
+  compareParticipantsByComposite,
+  computePoolMaxValues,
+} from "@/lib/raid-assignment";
 import { apiError, requireMinRole } from "@/lib/server-auth";
 
 type Params = { params: Promise<{ id: string }> };
@@ -34,7 +38,10 @@ export async function POST(request: NextRequest, context: Params) {
           planId,
           registrationStatus: { in: ["SELECTED_PARTICIPANT", "SELECTED_RESERVIST"] },
         },
-        include: { squadPowers: true },
+        include: {
+          squadPowers: true,
+          member: { select: { reservoirRaidScore: true } },
+        },
       }),
       prisma.reservoirRaidObjective.findMany({
         where: { planId, isAssignable: true },
@@ -58,14 +65,18 @@ export async function POST(request: NextRequest, context: Params) {
       ...p,
       squad1Power: Number(p.squadPowers.find((sq) => sq.squadIndex === 1)?.power ?? 0),
       totalSquadPower: p.squadPowers.reduce((sum, sq) => sum + Number(sq.power), 0),
+      reservoirRaidScore: p.member?.reservoirRaidScore ?? null,
     });
 
-    const mainParticipants = participants
+    const allLike = participants.map(toParticipantLike);
+    const { maxRRS, maxSquad1 } = computePoolMaxValues(allLike);
+
+    const mainParticipants = allLike
       .filter((p) => p.registrationStatus === "SELECTED_PARTICIPANT")
-      .sort((a, b) => compareParticipantsBySquad1Power(toParticipantLike(a), toParticipantLike(b)));
-    const reservists = participants
+      .sort((a, b) => compareParticipantsByComposite(a, b, maxRRS, maxSquad1));
+    const reservists = allLike
       .filter((p) => p.registrationStatus === "SELECTED_RESERVIST")
-      .sort((a, b) => compareParticipantsBySquad1Power(toParticipantLike(a), toParticipantLike(b)));
+      .sort((a, b) => compareParticipantsByComposite(a, b, maxRRS, maxSquad1));
     const pool = [...mainParticipants, ...reservists];
 
     let cursor = 0;

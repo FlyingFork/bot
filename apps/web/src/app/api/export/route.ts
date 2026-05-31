@@ -11,6 +11,12 @@ import {
   isPhase4LeaderboardType,
 } from "@/lib/phase4-shared";
 import { getContributionScores, latestPowerFromEntryData } from "@/lib/phase4";
+import { totalSquadPower } from "@/lib/phase6";
+import {
+  computePoolMaxValues,
+  participantCompositeScore,
+  type RaidParticipantLike,
+} from "@/lib/raid-assignment";
 
 type ExportRow = Record<string, string | number | null>;
 
@@ -170,6 +176,104 @@ async function memberRaidRows(memberId: string | null) {
   }));
 }
 
+async function rrsLeaderboardRows() {
+  const members = await prisma.allianceMember.findMany({
+    where: { memberStatus: { notIn: ["LEFT", "TRANSFERRED"] } },
+    select: { username: true, reservoirRaidScore: true },
+    orderBy: { username: "asc" },
+  });
+  return [...members]
+    .sort((a, b) => {
+      if (a.reservoirRaidScore !== null && b.reservoirRaidScore !== null) return b.reservoirRaidScore - a.reservoirRaidScore;
+      if (a.reservoirRaidScore !== null) return -1;
+      if (b.reservoirRaidScore !== null) return 1;
+      return a.username.localeCompare(b.username);
+    })
+    .map((m) => ({ username: m.username, reservoirRaidScore: m.reservoirRaidScore }));
+}
+
+async function raidParticipantRows(planId: string | null): Promise<ExportRow[]> {
+  if (!planId) return [];
+  const plan = await prisma.reservoirRaidPlan.findUnique({
+    where: { id: planId },
+    include: {
+      participants: {
+        orderBy: { createdAt: "asc" },
+        include: {
+          member: { select: { username: true, reservoirRaidScore: true } },
+          squadPowers: { orderBy: { squadIndex: "asc" } },
+        },
+      },
+    },
+  });
+  if (!plan) return [];
+
+  const participantLike: RaidParticipantLike[] = plan.participants.map((p) => ({
+    id: p.id,
+    username: p.member?.username ?? p.username,
+    registrationStatus: p.registrationStatus,
+    squad1Power: Number(p.squadPowers.find((sq) => sq.squadIndex === 1)?.power ?? 0),
+    totalSquadPower: totalSquadPower(p.squadPowers),
+    reservoirRaidScore: p.member?.reservoirRaidScore ?? null,
+  }));
+  const { maxRRS, maxSquad1 } = computePoolMaxValues(participantLike);
+
+  const matchedMemberIds = plan.participants.map((p) => p.memberId).filter((mid): mid is string => mid !== null);
+  const [contributionScores, waterHistory] = await Promise.all([
+    matchedMemberIds.length > 0 ? getContributionScores(matchedMemberIds) : Promise.resolve(new Map()),
+    matchedMemberIds.length > 0
+      ? prisma.reservoirRaidParticipant.findMany({
+          where: { memberId: { in: matchedMemberIds }, waterCollected: { not: null } },
+          select: { memberId: true, waterCollected: true },
+          orderBy: { plan: { raidDate: "desc" } },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const waterByMember = new Map<string, { last: number; total: number }>();
+  for (const entry of waterHistory) {
+    if (!entry.memberId || entry.waterCollected === null) continue;
+    const existing = waterByMember.get(entry.memberId);
+    if (!existing) {
+      waterByMember.set(entry.memberId, { last: entry.waterCollected, total: entry.waterCollected });
+    } else {
+      existing.total += entry.waterCollected;
+    }
+  }
+
+  const statusOrder: Record<string, number> = {
+    SELECTED_PARTICIPANT: 0, SELECTED_RESERVIST: 1, MATCHED: 2, NOT_SELECTED: 3, UNMATCHED: 4,
+  };
+
+  const sorted = [...plan.participants].sort((a, b) => {
+    const sa = statusOrder[a.registrationStatus] ?? 5;
+    const sb = statusOrder[b.registrationStatus] ?? 5;
+    if (sa !== sb) return sa - sb;
+    const pLikeA = participantLike.find((p) => p.id === a.id)!;
+    const pLikeB = participantLike.find((p) => p.id === b.id)!;
+    return participantCompositeScore(pLikeB, maxRRS, maxSquad1) - participantCompositeScore(pLikeA, maxRRS, maxSquad1);
+  });
+
+  return sorted.map((p) => {
+    const pLike = participantLike.find((pl) => pl.id === p.id)!;
+    const cs = participantCompositeScore(pLike, maxRRS, maxSquad1);
+    const wd = p.memberId ? waterByMember.get(p.memberId) : undefined;
+    const contrib = p.memberId ? contributionScores.get(p.memberId) : undefined;
+    return {
+      username: p.member?.username ?? p.username,
+      status: p.registrationStatus,
+      squad1Power: pLike.squad1Power || null,
+      totalSquadPower: pLike.totalSquadPower || null,
+      reservoirRaidScore: p.member?.reservoirRaidScore ?? null,
+      compositeScore: Math.round(cs * 10) / 10,
+      raidReliability: contrib && contrib.raidTotal > 0 ? contrib.raidScore : null,
+      waterCollected: p.waterCollected,
+      lastWaterCollected: wd?.last ?? null,
+      totalWaterCollected: wd?.total ?? null,
+    };
+  });
+}
+
 async function raidResultRows(planId: string | null): Promise<ExportRow[]> {
   if (!planId) return [];
   const participants = await prisma.reservoirRaidParticipant.findMany({
@@ -268,6 +372,14 @@ export async function GET(request: NextRequest) {
       const planId = params.get("planId");
       rows = await raidResultRows(planId);
       fields = ["playerName", "waterCollected"];
+    } else if (type === "rrs-leaderboard") {
+      if (!hasRole(user.role, "r4")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      rows = await rrsLeaderboardRows();
+      fields = ["username", "reservoirRaidScore"];
+    } else if (type === "raid-participants") {
+      if (!hasRole(user.role, "r4")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      rows = await raidParticipantRows(params.get("planId"));
+      fields = ["username", "status", "squad1Power", "totalSquadPower", "reservoirRaidScore", "compositeScore", "raidReliability", "waterCollected", "lastWaterCollected", "totalWaterCollected"];
     } else {
       return NextResponse.json({ error: "Invalid export type" }, { status: 400 });
     }

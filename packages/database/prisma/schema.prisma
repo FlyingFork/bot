@@ -66,6 +66,7 @@ enum PendingChangeType {
   LEADERBOARD_SNAPSHOT
   ALLIANCE_DUEL_DAY
   RESERVOIR_RAID_RESULTS
+  RESERVOIR_RAID_SCORES
 }
 
 enum PendingChangeStatus {
@@ -438,10 +439,14 @@ model AllianceMember {
   joinedAt            DateTime?    @map("joined_at")
   leftAt              DateTime?    @map("left_at")
 
+  reservoirRaidScore          Int?      @map("reservoir_raid_score")
+  reservoirRaidScoreUpdatedAt DateTime? @map("reservoir_raid_score_updated_at")
+
   rosterSnapshots  AllianceRosterSnapshot[]
   eventSnapshots   AllianceEventSnapshot[]
   raidParticipants ReservoirRaidParticipant[]
   raidSquadPowers  ReservoirRaidSquadPower[]
+  raidScoreHistory ReservoirRaidScoreHistory[]
 
   user               user?
   nameHistory        MemberNameHistory[]
@@ -728,4 +733,16 @@ model ReservoirRaidAssignment {
 
   @@index([planId, objectiveId])
   @@map("reservoir_raid_assignments")
+}
+
+model ReservoirRaidScoreHistory {
+  id           String         @id @default(cuid())
+  memberId     String         @map("member_id")
+  member       AllianceMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  score        Int
+  recordedAt   DateTime       @default(now()) @map("recorded_at")
+  recordedById String?        @map("recorded_by_id")
+
+  @@index([memberId, recordedAt])
+  @@map("reservoir_raid_score_history")
 }

@@ -76,7 +76,7 @@ export function UploadWorkspace({
   const initialDuelDay = Number(searchParams.get("eventDay") ?? "");
   const [tab, setTab] = useState<"submit" | "mine" | "direct">("submit");
   const [kind, setKind] = useState<UIKind>(
-    initialKind === "ALLIANCE_DUEL_DAY" || initialKind === "RESERVOIR_RAID_RESULTS" || initialKind === "LEADERBOARD_SNAPSHOT" || initialKind === "ROSTER_UPDATE"
+    initialKind === "ALLIANCE_DUEL_DAY" || initialKind === "RESERVOIR_RAID_RESULTS" || initialKind === "RESERVOIR_RAID_SCORES" || initialKind === "LEADERBOARD_SNAPSHOT" || initialKind === "ROSTER_UPDATE"
       ? initialKind
       : "LEADERBOARD_SNAPSHOT",
   );
@@ -113,6 +113,9 @@ export function UploadWorkspace({
         eventDay: duelDay,
         label: t("duelDayLabel", { day: duelDay }),
       };
+    }
+    if (kind === "RESERVOIR_RAID_SCORES") {
+      return { kind, label: t("raidScores") };
     }
     return {
       kind,
@@ -234,6 +237,7 @@ export function UploadWorkspace({
                 <option value="ROSTER_UPDATE">{t("rosterUpdate")}</option>
                 <option value="ALLIANCE_DUEL_DAY">{t("allianceDuelDay")}</option>
                 <option value="RESERVOIR_RAID_RESULTS">{t("raidResults")}</option>
+                <option value="RESERVOIR_RAID_SCORES">{t("raidScores")}</option>
               </select>
             </label>
 

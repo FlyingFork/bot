@@ -15,6 +15,7 @@ export type RaidParticipantLike = {
   totalSquadPower?: number;
   squad1Power?: number;
   squadPowers?: SquadPowerLike[];
+  reservoirRaidScore?: number | null;
 };
 
 export const STRATEGIC_OBJECTIVE_MULTIPLIERS: Record<string, number> = {
@@ -55,6 +56,41 @@ export function compareParticipantsBySquad1Power(a: RaidParticipantLike, b: Raid
   return (
     participantSquad1Power(b) - participantSquad1Power(a) ||
     participantTotalPower(b) - participantTotalPower(a) ||
+    a.username.localeCompare(b.username)
+  );
+}
+
+export function computePoolMaxValues(participants: RaidParticipantLike[]) {
+  let maxRRS = 0;
+  let maxSquad1 = 0;
+  for (const p of participants) {
+    const rrs = p.reservoirRaidScore ?? 0;
+    if (rrs > maxRRS) maxRRS = rrs;
+    const s1 = participantSquad1Power(p);
+    if (s1 > maxSquad1) maxSquad1 = s1;
+  }
+  return { maxRRS, maxSquad1 };
+}
+
+export function participantCompositeScore(
+  participant: RaidParticipantLike,
+  maxRRS: number,
+  maxSquad1: number,
+): number {
+  const rrsComponent = maxRRS > 0 ? ((participant.reservoirRaidScore ?? 0) / maxRRS) * 50 : 0;
+  const squad1Component = maxSquad1 > 0 ? (participantSquad1Power(participant) / maxSquad1) * 50 : 0;
+  return rrsComponent + squad1Component;
+}
+
+export function compareParticipantsByComposite(
+  a: RaidParticipantLike,
+  b: RaidParticipantLike,
+  maxRRS: number,
+  maxSquad1: number,
+): number {
+  return (
+    participantCompositeScore(b, maxRRS, maxSquad1) - participantCompositeScore(a, maxRRS, maxSquad1) ||
+    participantSquad1Power(b) - participantSquad1Power(a) ||
     a.username.localeCompare(b.username)
   );
 }

@@ -688,7 +688,8 @@
       "navigation": "Navigation",
       "profile": "Profile",
       "signOut": "Sign out",
-      "notificationLabel": "Notifications"
+      "notificationLabel": "Notifications",
+      "rrsScores": "Raid Scores"
     },
     "leaderboardTypes": {
       "SOLO_POWER": "Solo Power",
@@ -959,6 +960,7 @@
       "rosterUpdate": "Roster Update",
       "allianceDuelDay": "Alliance Duel day",
       "raidResults": "Reservoir Raid results",
+      "raidScores": "Reservoir Raid scores",
       "leaderboardType": "Leaderboard type",
       "duelInstance": "Duel instance",
       "duelDay": "Duel day",
@@ -1152,7 +1154,14 @@
       "explorationLevel": "Exploration level",
       "collectionPower": "Collection power",
       "totalPower": "Total power",
-      "allianceRank": "Alliance rank"
+      "allianceRank": "Alliance rank",
+      "reservoirRaidScore": "Raid Score",
+      "squad1Power": "Squad 1 Power",
+      "totalSquadPower": "Total Squad Power",
+      "compositeScore": "Composite Score",
+      "raidReliability": "Reliability (%)",
+      "lastWaterCollected": "Last Water",
+      "totalWaterCollected": "Total Water"
     },
     "leaderboards": {
       "title": "Leaderboards",
@@ -1466,6 +1475,7 @@
       "registrationClosed": "Registration closed",
       "openRegistration": "Open registration",
       "closeRegistration": "Close registration",
+      "uploadScores": "Upload Scores",
       "participantsLabel": "Participants",
       "action": "Action",
       "open": "Open",
@@ -1552,6 +1562,15 @@
         "ingameName": "In-game name",
         "squadPower": "Total squad power",
         "powerHeader": "S1 / Total power",
+        "rrsHeader": "Raid Score",
+        "compositeHeader": "Composite",
+        "compositeAbbr": "CS",
+        "compositeScoreInfo": "Composite = Raid Score (50%) + Squad 1 Power (50%), each normalized to the event's highest value",
+        "scoreStaleWarning": "Score may be outdated (last updated over 1.5 weeks ago)",
+        "sortBy": "Sort by",
+        "sortComposite": "Composite score",
+        "sortSquad1": "Squad 1 power",
+        "sortRRS": "Raid score",
         "status": "Status",
         "action": "Actions",
         "cap": "{participants}/{participantLimit} participants · {reservists}/{reservistLimit} reservists",
@@ -1626,6 +1645,7 @@
           "squadPower": "Squad Power",
           "role": "Role"
         },
+        "here": "Here",
         "effectsTitle": "Objective Bonuses",
         "effects": {
           "abandoned_helipad": "Relocator Cooldown −50%",
@@ -1650,6 +1670,28 @@
         "hasParticipants": "This raid has participants and cannot be deleted.",
         "generic": "Action failed. Please try again."
       }
+    },
+    "rrsLeaderboard": {
+      "title": "Raid Score Leaderboard",
+      "subtitle": "Alliance members ranked by Reservoir Raid Score.",
+      "searchPlaceholder": "Search by name...",
+      "status": "Status",
+      "allStatuses": "All statuses",
+      "rank": "Rank",
+      "member": "Member",
+      "allianceRank": "Alliance Rank",
+      "score": "Score",
+      "lastUpdated": "Last updated",
+      "noScore": "No score",
+      "staleHint": "Score may be outdated (>1.5 weeks)",
+      "noResults": "No members match this search.",
+      "memberSection": "Reservoir Raid Score",
+      "noScoreRecorded": "No score recorded yet.",
+      "scoreHistory": "Score history",
+      "historyDate": "Date",
+      "historyScore": "Score",
+      "historyRecordedBy": "Recorded by",
+      "noHistory": "No score history."
     },
     "registration": {
       "title": "Reservoir Raid Registration",

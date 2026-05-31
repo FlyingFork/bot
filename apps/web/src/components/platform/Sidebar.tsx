@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import {
   LayoutDashboard, Users, BarChart2, Trophy, CalendarRange,
   Upload, Swords, Droplets, Bell, ShieldCheck, ListChecks,
-  UserCog, ScrollText, Settings2,
+  UserCog, ScrollText, Settings2, Gauge,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { hasRole } from "@/lib/roles";
@@ -53,6 +53,13 @@ export function Sidebar({ role, allianceName, unreadCount = 0 }: SidebarProps) {
           <NavLink href="/leaderboards">
             <Trophy size={16} strokeWidth={1.5} className="shrink-0" />
             {t("leaderboards")}
+          </NavLink>
+        )}
+
+        {isR4Plus && (
+          <NavLink href="/scores/reservoir-raid">
+            <Gauge size={16} strokeWidth={1.5} className="shrink-0" />
+            {t("rrsScores")}
           </NavLink>
         )}
 

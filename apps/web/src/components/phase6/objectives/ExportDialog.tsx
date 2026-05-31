@@ -22,73 +22,19 @@ const LANG_LABELS: Record<ObjectiveLang, string> = { en: "EN", ru: "RU", tr: "TR
 
 function buildTxt(
   objectives: RaidObjectiveRow[],
-  participants: RaidParticipantRow[],
   lang: ObjectiveLang,
-  raidDate: string,
-  startsAt: string,
 ): string {
-  const date = new Date(raidDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-  const utcTime = new Date(startsAt).toISOString().slice(11, 16);
-  const localTime = new Date(startsAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
   const assignable = objectives
     .filter((o) => o.isAssignable)
     .sort((a, b) => a.tier - b.tier || b.waterRate - a.waterRate);
 
-  const assignedIds = new Set(assignable.flatMap((o) => o.assignments.map((a) => a.participantId)));
-  const eligible = participants.filter(
-    (p) => p.registrationStatus === "SELECTED_PARTICIPANT" || p.registrationStatus === "SELECTED_RESERVIST",
-  );
-  const unassigned = eligible.filter((p) => !assignedIds.has(p.id));
-
-  const sep = "─".repeat(56);
-  const lines: string[] = [
-    `Reservoir Raid Plan — ${date} ${utcTime} UTC / ${localTime}`,
-    sep,
-    "",
-  ];
-
-  let currentTier = -1;
-  for (const obj of assignable) {
-    if (obj.tier !== currentTier) {
-      if (currentTier !== -1) lines.push("");
-      currentTier = obj.tier;
-      lines.push(`[TIER ${obj.tier} — +${obj.waterRate.toLocaleString()}/min]`);
-    }
-    lines.push(getObjectiveName(obj.key, lang));
-    if (obj.assignments.length === 0) {
-      lines.push("  (unassigned)");
-    } else {
-      for (const a of obj.assignments) {
-        const squad1Str = formatPower(a.squad1Power);
-        const role = a.registrationStatus === "SELECTED_PARTICIPANT" ? "Participant" : "Reservist — standby";
-        lines.push(`  → ${a.playerName} (Squad: ${squad1Str}) [${role}]`);
-      }
-    }
-  }
-
-  lines.push("");
-  lines.push(sep);
-
-  if (unassigned.length > 0) {
-    lines.push("Unassigned participants:");
-    for (const p of unassigned) {
-      const squad1 = p.squadPowers.find((s) => s.squadIndex === 1)?.power ?? 0;
-      const role = p.registrationStatus === "SELECTED_PARTICIPANT" ? "Participant" : "Reservist — standby";
-      lines.push(`  → ${p.username} (Squad: ${formatPower(squad1)}) [${role}]`);
-    }
-    lines.push("");
-  }
-
-  lines.push("Water Collectors — available to all unassigned participants.");
-  lines.push("Everyone available to relocate should move to their assigned");
-  lines.push("objective's area if it is secure.");
-  lines.push(sep);
-
-  const totalRate = assignable.reduce((s, o) => s + o.waterRate, 0);
-  lines.push(`Total water rate if all objectives held: +${totalRate.toLocaleString()}/min`);
-
-  return lines.join("\n");
+  return assignable
+    .map((obj) => {
+      const name = getObjectiveName(obj.key, lang);
+      const players = obj.assignments.map((a) => a.playerName).join(", ");
+      return `${name}: ${players}`;
+    })
+    .join("\n\n");
 }
 
 function buildCsv(
@@ -149,7 +95,7 @@ export function ExportDialog({ planId, raidDate, startsAt, objectives, participa
   function handleDownload() {
     const content =
       format === "txt"
-        ? buildTxt(objectives, participants, lang, raidDate, startsAt)
+        ? buildTxt(objectives, lang)
         : buildCsv(objectives, participants, lang);
 
     const mime = format === "csv" ? "text/csv;charset=utf-8" : "text/plain;charset=utf-8";

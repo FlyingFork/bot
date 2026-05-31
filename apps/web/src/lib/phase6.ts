@@ -146,3 +146,64 @@ export async function applyRaidResultsUpload({
 export function totalSquadPower(powers: { power: bigint | string | number }[]) {
   return powers.reduce((sum, p) => sum + Number(p.power), 0);
 }
+
+export async function applyRaidScoresUpload({
+  rows,
+  actorId,
+  action,
+}: {
+  rows: UploadRow[];
+  actorId: string;
+  action: string;
+}) {
+  const members = await prisma.allianceMember.findMany({
+    select: {
+      id: true,
+      username: true,
+      nameHistory: { select: { name: true } },
+    },
+  });
+
+  // Build a name → memberId lookup (current username + all historical names)
+  const nameToMemberId = new Map<string, string>();
+  for (const member of members) {
+    const key = normalizeStr(member.username);
+    if (!nameToMemberId.has(key)) nameToMemberId.set(key, member.id);
+    for (const h of member.nameHistory) {
+      const hKey = normalizeStr(h.name);
+      if (!nameToMemberId.has(hKey)) nameToMemberId.set(hKey, member.id);
+    }
+  }
+
+  const unmatched: string[] = [];
+  let updated = 0;
+
+  const matched: { memberId: string; score: number }[] = [];
+  for (const row of rows) {
+    const playerName = String(row.playerName ?? "");
+    const score = row.reservoirRaidScore;
+    if (typeof score !== "number") { unmatched.push(playerName); continue; }
+    const memberId = nameToMemberId.get(normalizeStr(playerName));
+    if (!memberId) { unmatched.push(playerName); continue; }
+    matched.push({ memberId, score });
+  }
+  updated = matched.length;
+
+  await prisma.$transaction(async (tx) => {
+    const now = new Date();
+    await Promise.all(
+      matched.map((item) =>
+        tx.allianceMember.update({
+          where: { id: item.memberId },
+          data: { reservoirRaidScore: item.score, reservoirRaidScoreUpdatedAt: now },
+        }),
+      ),
+    );
+    await tx.reservoirRaidScoreHistory.createMany({
+      data: matched.map((item) => ({ memberId: item.memberId, score: item.score, recordedById: actorId })),
+    });
+    await createAuditLog(actorId, action, "AllianceMember", "bulk", undefined, undefined, tx);
+  }, { timeout: 30_000 });
+
+  return { updated, unmatched };
+}

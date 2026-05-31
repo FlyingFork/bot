@@ -13,6 +13,11 @@ import { requireUser } from "@/lib/server-auth";
 import { isRaidWithinUnmatchedWarningWindow, totalSquadPower } from "@/lib/phase6";
 import { OBJECTIVE_DEFINITIONS } from "@/lib/raid-objectives";
 import { getContributionScores, type ContributionScore } from "@/lib/phase4";
+import {
+  computePoolMaxValues,
+  participantCompositeScore,
+  type RaidParticipantLike,
+} from "@/lib/raid-assignment";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -28,7 +33,7 @@ export default async function ReservoirRaidDetailPage({ params }: Props) {
         participants: {
           orderBy: { createdAt: "asc" },
           include: {
-            member: { select: { username: true } },
+            member: { select: { username: true, reservoirRaidScore: true, reservoirRaidScoreUpdatedAt: true } },
             squadPowers: { orderBy: { squadIndex: "asc" } },
           },
         },
@@ -39,7 +44,7 @@ export default async function ReservoirRaidDetailPage({ params }: Props) {
               include: {
                 participant: {
                   include: {
-                    member: { select: { username: true } },
+                    member: { select: { username: true, reservoirRaidScore: true, reservoirRaidScoreUpdatedAt: true } },
                     squadPowers: true,
                   },
                 },
@@ -117,10 +122,46 @@ export default async function ReservoirRaidDetailPage({ params }: Props) {
     });
   }
 
+  const STALE_THRESHOLD_MS = 10.5 * 24 * 60 * 60 * 1000; // 1.5 weeks
+
+  // Build participant-like objects for composite score computation
+  const participantLike: RaidParticipantLike[] = plan.participants.map((p) => ({
+    id: p.id,
+    username: p.member?.username ?? p.username,
+    registrationStatus: p.registrationStatus,
+    squad1Power: Number(p.squadPowers.find((sq) => sq.squadIndex === 1)?.power ?? 0),
+    totalSquadPower: totalSquadPower(p.squadPowers),
+    reservoirRaidScore: p.member?.reservoirRaidScore ?? null,
+  }));
+  const { maxRRS, maxSquad1 } = computePoolMaxValues(participantLike);
+
+  // Assign composite-score tiers relative to this event's participants
+  const scoredParticipants = participantLike
+    .map((p) => ({ id: p.id, composite: participantCompositeScore(p, maxRRS, maxSquad1) }))
+    .sort((a, b) => b.composite - a.composite);
+  const tierByParticipantId = new Map<string, "high" | "mid" | "low" | "none">();
+  const n = scoredParticipants.length;
+  scoredParticipants.forEach((item, index) => {
+    const hasScore = participantLike.find((p) => p.id === item.id)?.reservoirRaidScore != null;
+    const hasSquad1 = (participantLike.find((p) => p.id === item.id)?.squad1Power ?? 0) > 0;
+    if (!hasScore && !hasSquad1) {
+      tierByParticipantId.set(item.id, "none");
+    } else if (index < Math.ceil(n / 3)) {
+      tierByParticipantId.set(item.id, "high");
+    } else if (index < Math.ceil((2 * n) / 3)) {
+      tierByParticipantId.set(item.id, "mid");
+    } else {
+      tierByParticipantId.set(item.id, "low");
+    }
+  });
+
+  const now = Date.now();
   const participantRows: RaidParticipantRow[] = plan.participants.map((p) => {
     const cs = p.memberId ? contributionScores.get(p.memberId) : undefined;
     const wd = p.memberId ? waterByMember.get(p.memberId) : undefined;
     const displayName = p.member?.username ?? p.username;
+    const rrsUpdatedAt = p.member?.reservoirRaidScoreUpdatedAt ?? null;
+    const pLike = participantLike.find((pl) => pl.id === p.id)!;
     return {
       id: p.id,
       username: displayName,
@@ -130,7 +171,7 @@ export default async function ReservoirRaidDetailPage({ params }: Props) {
       contact: p.contact,
       registrationStatus: p.registrationStatus,
       waterCollected: p.waterCollected,
-      squad1Power: Number(p.squadPowers.find((sq) => sq.squadIndex === 1)?.power ?? 0),
+      squad1Power: pLike.squad1Power ?? 0,
       totalSquadPower: totalSquadPower(p.squadPowers),
       squadPowers: p.squadPowers.map((sq) => ({ squadIndex: sq.squadIndex, power: Number(sq.power) })),
       raidReliability:
@@ -139,6 +180,11 @@ export default async function ReservoirRaidDetailPage({ params }: Props) {
           : null,
       lastWaterCollected: wd?.last ?? null,
       totalWaterCollected: wd ? wd.total : null,
+      reservoirRaidScore: p.member?.reservoirRaidScore ?? null,
+      reservoirRaidScoreUpdatedAt: rrsUpdatedAt ? rrsUpdatedAt.toISOString() : null,
+      compositeScore: participantCompositeScore(pLike, maxRRS, maxSquad1),
+      compositeScoreTier: tierByParticipantId.get(p.id) ?? "none",
+      isScoreStale: rrsUpdatedAt != null && now - rrsUpdatedAt.getTime() > STALE_THRESHOLD_MS,
     };
   });
 

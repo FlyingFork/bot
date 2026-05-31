@@ -3,7 +3,8 @@ import { UPLOAD_PROMPTS } from "./upload-prompts";
 export type UploadKind =
   | "LEADERBOARD_SNAPSHOT"
   | "ALLIANCE_DUEL_DAY"
-  | "RESERVOIR_RAID_RESULTS";
+  | "RESERVOIR_RAID_RESULTS"
+  | "RESERVOIR_RAID_SCORES";
 
 export const LEADERBOARD_TYPES = [
   "SOLO_POWER",
@@ -48,6 +49,7 @@ export const UPLOAD_SCHEMA_FIELDS = {
   ALLIANCE_PLAYER_LIST: ["playerName", "allianceRank", "totalPower"],
   ALLIANCE_DUEL_DAY: ["playerName", "points"],
   RESERVOIR_RAID_RESULTS: ["playerName", "waterCollected"],
+  RESERVOIR_RAID_SCORES: ["playerName", "reservoirRaidScore"],
 } as const;
 
 // Fields that are validated as strings; everything else is validated as a number.
@@ -94,6 +96,7 @@ export const UPLOAD_SCHEMA_EXAMPLES = {
   ALLIANCE_DUEL_DAY:
     "[{ side: \"ALLY\" | \"ENEMY\", playerName: string, points: number }]",
   RESERVOIR_RAID_RESULTS: "[{ playerName: string, waterCollected: number }]",
+  RESERVOIR_RAID_SCORES: "[{ playerName: string, reservoirRaidScore: number }]",
 } as const;
 
 export function schemaForUpload(

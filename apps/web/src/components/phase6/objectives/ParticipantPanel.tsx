@@ -5,7 +5,11 @@ import { ArrowDownNarrowWide, ArrowUpNarrowWide, Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { RaidObjectiveRow, RaidParticipantRow } from "@/components/phase6/ReservoirRaidDetail";
 import { Input } from "@/components/ui/input";
-import { compareParticipantsBySquad1Power, isEligibleRaidParticipant } from "@/lib/raid-assignment";
+import {
+  compareParticipantsByComposite,
+  computePoolMaxValues,
+  isEligibleRaidParticipant,
+} from "@/lib/raid-assignment";
 import type { ObjectiveLang } from "@/lib/raid-objectives";
 import { ParticipantCard } from "./ParticipantCard";
 
@@ -28,22 +32,24 @@ export function ParticipantPanel({ participants, objectives, planLang, canEdit }
     }
   }
 
+  const eligible = participants.filter(isEligibleRaidParticipant);
+  const { maxRRS, maxSquad1 } = computePoolMaxValues(eligible);
+
   function sortParticipants(arr: RaidParticipantRow[]) {
-    const sorted = [...arr].sort(compareParticipantsBySquad1Power);
+    const sorted = [...arr].sort((a, b) => compareParticipantsByComposite(a, b, maxRRS, maxSquad1));
     return sortDir === "asc" ? sorted.reverse() : sorted;
   }
 
   const query = search.trim().toLowerCase();
-  const eligible = participants
-    .filter(isEligibleRaidParticipant)
+  const filteredEligible = eligible
     .filter((p) => p.username.toLowerCase().includes(query) || (p.memberName?.toLowerCase().includes(query) ?? false));
 
   const mainParticipants = sortParticipants(
-    eligible.filter((p) => p.registrationStatus === "SELECTED_PARTICIPANT"),
+    filteredEligible.filter((p) => p.registrationStatus === "SELECTED_PARTICIPANT"),
   );
 
   const reservists = sortParticipants(
-    eligible.filter((p) => p.registrationStatus === "SELECTED_RESERVIST"),
+    filteredEligible.filter((p) => p.registrationStatus === "SELECTED_RESERVIST"),
   );
 
   return (
@@ -112,7 +118,7 @@ export function ParticipantPanel({ participants, objectives, planLang, canEdit }
         </section>
       )}
 
-      {eligible.length === 0 && participants.some(isEligibleRaidParticipant) && (
+      {filteredEligible.length === 0 && participants.some(isEligibleRaidParticipant) && (
         <p className="text-xs text-text-muted text-center py-4">{t("noParticipantsFound")}</p>
       )}
 

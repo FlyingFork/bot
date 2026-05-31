@@ -6,7 +6,7 @@ import { createNotification } from "@/lib/notifications";
 import { apiError, requireAdmin } from "@/lib/server-auth";
 import { applyLeaderboardSnapshot, computeUploadReview, parsePendingRows, type UploadResolutionData } from "@/lib/uploads";
 import { applyAllianceDuelDayUpload } from "@/lib/phase5";
-import { applyRaidResultsUpload } from "@/lib/phase6";
+import { applyRaidResultsUpload, applyRaidScoresUpload } from "@/lib/phase6";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -21,7 +21,8 @@ export async function POST(_request: Request, context: Params) {
     if (
       pending.type !== "LEADERBOARD_SNAPSHOT" &&
       pending.type !== "ALLIANCE_DUEL_DAY" &&
-      pending.type !== "RESERVOIR_RAID_RESULTS"
+      pending.type !== "RESERVOIR_RAID_RESULTS" &&
+      pending.type !== "RESERVOIR_RAID_SCORES"
     ) {
       return NextResponse.json({ errorCode: "laterPhase" }, { status: 400 });
     }
@@ -66,6 +67,12 @@ export async function POST(_request: Request, context: Params) {
         planId: pending.eventInstanceId,
         rows,
         pendingChangeId: pending.id,
+        actorId: actor.id,
+        action: "UPLOAD_DATA_APPLIED",
+      });
+    } else if (pending.type === "RESERVOIR_RAID_SCORES") {
+      await applyRaidScoresUpload({
+        rows,
         actorId: actor.id,
         action: "UPLOAD_DATA_APPLIED",
       });

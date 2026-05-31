@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     };
 
     const kind = body.kind;
-    if (kind !== "LEADERBOARD_SNAPSHOT" && kind !== "ALLIANCE_DUEL_DAY" && kind !== "RESERVOIR_RAID_RESULTS") {
+    if (kind !== "LEADERBOARD_SNAPSHOT" && kind !== "ALLIANCE_DUEL_DAY" && kind !== "RESERVOIR_RAID_RESULTS" && kind !== "RESERVOIR_RAID_SCORES") {
       return NextResponse.json({ errors: [{ code: "type" }], rows: [], diff: [] }, { status: 400 });
     }
 

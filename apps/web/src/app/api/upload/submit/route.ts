@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       label?: string;
     };
     const kind = body.kind;
-    if (kind !== "LEADERBOARD_SNAPSHOT" && kind !== "ALLIANCE_DUEL_DAY" && kind !== "RESERVOIR_RAID_RESULTS") {
+    if (kind !== "LEADERBOARD_SNAPSHOT" && kind !== "ALLIANCE_DUEL_DAY" && kind !== "RESERVOIR_RAID_RESULTS" && kind !== "RESERVOIR_RAID_SCORES") {
       return NextResponse.json({ errorCode: "invalidType" }, { status: 400 });
     }
 

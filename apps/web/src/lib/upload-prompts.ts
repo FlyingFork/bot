@@ -94,7 +94,14 @@ Return ONLY the JSON array as an embed so it's easy to copy, no extra text.`,
 Include every visible player regardless of alliance — do not filter by tag.
 Each entry must follow this format: {{schema}}
 "waterCollected" is the total amount of water each player collected (plain number, no abbreviations).
-Return ONLY the JSON array, no markdown, no extra text.`,
+Return ONLY the JSON array as an embed so it's easy to copy, no extra text.`,
+
+  RESERVOIR_RAID_SCORES: `Parse the attached screenshot of the Reservoir Raid score list and return a JSON array.
+Include all visible players regardless of alliance.
+Each entry must follow this format: {{schema}}
+The names of the players don't have new lines, it's just raw text, don't include the alliance tag only for allies.
+"reservoirRaidScore" is the player's Reservoir Raid Score as a plain integer (no abbreviations, e.g., 5K -> 5000, 1.2M -> 1200000).
+Return ONLY the JSON array as an embed so it's easy to copy, no extra text.`,
 } as const;
 
 export type UploadPromptKey = keyof typeof UPLOAD_PROMPTS;

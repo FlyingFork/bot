@@ -1,4 +1,4 @@
-import { ChannelType, WebhookClient, type TextChannel, type NewsChannel, type ThreadChannel } from "discord.js";
+import { AttachmentBuilder, ChannelType, WebhookClient, type TextChannel, type NewsChannel, type ThreadChannel } from "discord.js";
 import { prisma } from "../db.js";
 import { logger } from "../logger.js";
 
@@ -68,7 +68,7 @@ export async function sendWebhookMessage(params: {
   content: string;
   username: string;
   avatarURL: string;
-  files?: string[];
+  files?: (string | AttachmentBuilder)[];
   replyMessageId?: string;
 }): Promise<string> {
   const parent = params.channel.isThread() ? params.channel.parent : params.channel;

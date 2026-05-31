@@ -205,6 +205,13 @@ export async function hasPendingUpload(target: UploadTarget) {
     });
   }
 
+  if (target.kind === "RESERVOIR_RAID_SCORES") {
+    return prisma.pendingChange.findFirst({
+      where: { status: "PENDING", type: "RESERVOIR_RAID_SCORES" },
+      select: { id: true },
+    });
+  }
+
   if (!target.eventInstanceId) return false;
   return prisma.pendingChange.findFirst({
     where: {
@@ -348,7 +355,7 @@ export async function computeUploadReview({
     kind === "LEADERBOARD_SNAPSHOT" && leaderboardType
       ? await computeLeaderboardDiff(leaderboardType, reviewRows)
       : (await matchUploadRows(reviewRows)).flatMap((item) => [
-          ...(!item.memberId && rowSide(item.row) === "ALLY" && kind !== "RESERVOIR_RAID_RESULTS"
+          ...(!item.memberId && rowSide(item.row) === "ALLY" && kind !== "RESERVOIR_RAID_RESULTS" && kind !== "RESERVOIR_RAID_SCORES"
             ? [{
                 status: "unmatched" as const,
                 playerName: rowName(item.row),
@@ -391,7 +398,7 @@ export async function computeUploadReview({
       resolution?.action === "renameMember" ||
       resolution?.action === "createPartial" ||
       resolution?.action === "remove";
-    if (!item.memberId && side === "ALLY" && !resolved && kind !== "RESERVOIR_RAID_RESULTS") {
+    if (!item.memberId && side === "ALLY" && !resolved && kind !== "RESERVOIR_RAID_RESULTS" && kind !== "RESERVOIR_RAID_SCORES") {
       outliers.push({
         id: `row-${item.rowNumber}-unmatched`,
         type: "unmatched",
@@ -400,7 +407,7 @@ export async function computeUploadReview({
         memberId: null,
         blocking: true,
       });
-    } else if (!item.memberId && side === "ALLY" && resolved && kind !== "RESERVOIR_RAID_RESULTS") {
+    } else if (!item.memberId && side === "ALLY" && resolved && kind !== "RESERVOIR_RAID_RESULTS" && kind !== "RESERVOIR_RAID_SCORES") {
       outliers.push({
         id: `row-${item.rowNumber}-resolved`,
         type: "unmatched",
@@ -696,7 +703,8 @@ export async function parsePendingRows(pendingChangeId: string) {
   if (
     pending.type !== "LEADERBOARD_SNAPSHOT" &&
     pending.type !== "ALLIANCE_DUEL_DAY" &&
-    pending.type !== "RESERVOIR_RAID_RESULTS"
+    pending.type !== "RESERVOIR_RAID_RESULTS" &&
+    pending.type !== "RESERVOIR_RAID_SCORES"
   ) {
     return { pending, leaderboardType: null, rows: [] };
   }

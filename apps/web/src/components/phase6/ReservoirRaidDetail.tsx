@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { Check, Copy, Droplet, Droplets, Edit, FileUp, Pencil, Plus, Search, Trash2, Upload, UserCheck, UserPlus, Zap } from "lucide-react";
+import { Check, Clock, Copy, Droplet, Droplets, Edit, FileUp, Info, Pencil, Plus, Search, Trash2, Trophy, Upload, UserCheck, UserPlus, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { RAID_REGISTRATION_PROMPT } from "@/lib/upload-prompts";
 import { TimeDisplay } from "@/components/TimeDisplay";
@@ -40,6 +40,11 @@ export type RaidParticipantRow = {
   raidReliability: { score: number; participated: number; total: number } | null;
   lastWaterCollected: number | null;
   totalWaterCollected: number | null;
+  reservoirRaidScore: number | null;
+  reservoirRaidScoreUpdatedAt: string | null;
+  compositeScore: number;
+  compositeScoreTier: "high" | "mid" | "low" | "none";
+  isScoreStale: boolean;
 };
 
 export type RaidObjectiveRow = {
@@ -132,6 +137,20 @@ function statusBadgeVariant(status: string) {
   if (status === "SELECTED_PARTICIPANT") return "success" as const;
   if (status === "SELECTED_RESERVIST") return "warning" as const;
   return "secondary" as const;
+}
+
+function tierColorClass(tier: "high" | "mid" | "low" | "none") {
+  if (tier === "high") return "text-emerald-400";
+  if (tier === "mid") return "text-amber-400";
+  if (tier === "low") return "text-red-400";
+  return "text-text-muted";
+}
+
+function formatScore(value: number | null) {
+  if (value === null) return "—";
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K`;
+  return String(value);
 }
 
 // ─────────────────────────────────────────────
@@ -1035,6 +1054,16 @@ function RegistrationsTab({
 // Tab 2: Participants
 // ─────────────────────────────────────────────
 
+type ParticipantSortOption = "composite" | "squad1" | "rrs";
+
+function sortParticipants(arr: RaidParticipantRow[], by: ParticipantSortOption) {
+  return [...arr].sort((a, b) => {
+    if (by === "rrs") return (b.reservoirRaidScore ?? 0) - (a.reservoirRaidScore ?? 0) || b.compositeScore - a.compositeScore;
+    if (by === "squad1") return b.squad1Power - a.squad1Power || b.totalSquadPower - a.totalSquadPower;
+    return b.compositeScore - a.compositeScore || b.squad1Power - a.squad1Power;
+  });
+}
+
 function ParticipantsTab({
   planId,
   participants,
@@ -1045,6 +1074,7 @@ function ParticipantsTab({
   const t = useTranslations("phase6");
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [sortBy, setSortBy] = useState<ParticipantSortOption>("composite");
 
   const matched = participants.filter((p) => p.registrationStatus !== "UNMATCHED");
 
@@ -1052,7 +1082,11 @@ function ParticipantsTab({
   const selectedReservists = matched.filter((p) => p.registrationStatus === "SELECTED_RESERVIST");
   const notSelected = matched.filter((p) => p.registrationStatus === "NOT_SELECTED" || p.registrationStatus === "MATCHED");
 
-  const sorted = (arr: RaidParticipantRow[]) => [...arr].sort((a, b) => b.squad1Power - a.squad1Power || b.totalSquadPower - a.totalSquadPower);
+  const allSorted = [
+    ...sortParticipants(selectedParticipants, sortBy),
+    ...sortParticipants(selectedReservists, sortBy),
+    ...sortParticipants(notSelected, sortBy),
+  ];
 
   async function setStatus(participantId: string, status: string) {
     setBusy(true);
@@ -1068,11 +1102,11 @@ function ParticipantsTab({
     }
   }
 
-  const allSorted = [...sorted(selectedParticipants), ...sorted(selectedReservists), ...sorted(notSelected)];
-
   if (matched.length === 0) {
     return <p className="text-sm text-text-muted">{t("reservoirRaid.participants.empty")}</p>;
   }
+
+  const compositeInfoTitle = t("reservoirRaid.participants.compositeScoreInfo");
 
   const capBar = (
     <div className="rounded-md border border-border-dim bg-raised px-4 py-2 text-xs text-text-secondary">
@@ -1088,6 +1122,23 @@ function ParticipantsTab({
   return (
     <div className="space-y-4">
       {capBar}
+
+      {/* Sort controls + export */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-text-muted shrink-0">{t("reservoirRaid.participants.sortBy")}:</span>
+        <select
+          className={nativeSelectCls + " w-48"}
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as ParticipantSortOption)}
+        >
+          <option value="composite">{t("reservoirRaid.participants.sortComposite")}</option>
+          <option value="squad1">{t("reservoirRaid.participants.sortSquad1")}</option>
+          <option value="rrs">{t("reservoirRaid.participants.sortRRS")}</option>
+        </select>
+        <div className="ml-auto">
+          <ExportButton baseUrl={`/api/export?type=raid-participants&planId=${planId}`} />
+        </div>
+      </div>
 
       {/* Mobile cards */}
       <div className="md:hidden space-y-2">
@@ -1113,6 +1164,18 @@ function ParticipantsTab({
                   )}
                 </p>
               )}
+              <p className="flex items-center gap-1 text-xs">
+                <Trophy className="h-3 w-3 shrink-0 text-text-muted" />
+                <span className={tierColorClass(participant.compositeScoreTier)}>
+                  {formatScore(participant.reservoirRaidScore)}
+                </span>
+                {participant.isScoreStale && (
+                  <span title={t("reservoirRaid.participants.scoreStaleWarning")}>
+                    <Clock className="h-3 w-3 text-amber-400 shrink-0" />
+                  </span>
+                )}
+                <span className="text-text-muted opacity-60">· {t("reservoirRaid.participants.compositeAbbr")}: {participant.compositeScore.toFixed(1)}</span>
+              </p>
               {participant.memberId && (
                 <div className="flex flex-wrap gap-1">
                   <span className="flex items-center gap-1 rounded bg-surface px-1.5 py-0.5 text-[10px] text-text-muted">
@@ -1168,6 +1231,18 @@ function ParticipantsTab({
               </TableHead>
               <TableHead>
                 <span className="flex items-center gap-1">
+                  <Trophy className="h-3 w-3" />
+                  {t("reservoirRaid.participants.rrsHeader")}
+                </span>
+              </TableHead>
+              <TableHead>
+                <span className="flex items-center gap-1" title={compositeInfoTitle}>
+                  <Info className="h-3 w-3" />
+                  {t("reservoirRaid.participants.compositeHeader")}
+                </span>
+              </TableHead>
+              <TableHead>
+                <span className="flex items-center gap-1">
                   <Droplets className="h-3 w-3" />
                   {t("reservoirRaid.participants.waterHeader")}
                 </span>
@@ -1190,6 +1265,24 @@ function ParticipantsTab({
                     {participant.totalSquadPower > 0 && (
                       <span className="ml-1 text-xs text-text-muted opacity-70 tabular-nums">· {formatPower(participant.totalSquadPower)}</span>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    <span className={`font-medium tabular-nums ${tierColorClass(participant.compositeScoreTier)}`}>
+                      {formatScore(participant.reservoirRaidScore)}
+                    </span>
+                    {participant.isScoreStale && (
+                      <span title={t("reservoirRaid.participants.scoreStaleWarning")} className="inline-flex">
+                        <Clock className="inline-block ml-1 h-3 w-3 text-amber-400" />
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <span
+                      className={`font-medium tabular-nums ${tierColorClass(participant.compositeScoreTier)}`}
+                      title={compositeInfoTitle}
+                    >
+                      {participant.compositeScore.toFixed(1)}
+                    </span>
                   </TableCell>
                   <TableCell>
                     {participant.memberId ? (
@@ -1567,6 +1660,10 @@ export function ReservoirRaidDetail({
             <>
               <Button variant="ghost" size="sm" disabled={toggling} onClick={toggleRegistration}>
                 {raid.registrationOpen ? t("reservoirRaid.closeRegistration") : t("reservoirRaid.openRegistration")}
+              </Button>
+              <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/upload?kind=RESERVOIR_RAID_SCORES" />}>
+                <Trophy />
+                {t("reservoirRaid.uploadScores")}
               </Button>
               <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`/events/reservoir-raid/${raid.id}/edit`} />}>
                 <Edit />

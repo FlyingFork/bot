@@ -62,6 +62,8 @@ function Marker({
   isDesktop: boolean;
   highlighted: boolean;
 }) {
+  const t = useTranslations("phase6.reservoirRaid.objectives");
+
   if (!obj.isAssignable) return null;
 
   const S = isDesktop ? D : M;
@@ -77,6 +79,8 @@ function Marker({
   const circleShadow = highlighted
     ? `0 0 0 3px rgba(232,160,32,0.55), 0 0 18px rgba(232,160,32,0.45), 0 2px 10px rgba(0,0,0,0.7)`
     : "0 2px 10px rgba(0,0,0,0.7)";
+  // badge height (font line-height + 2px padding + 2px border) + 3px gap
+  const hereOffset = isDesktop ? 18 : 16;
 
   return (
     <div
@@ -84,12 +88,32 @@ function Marker({
         position: "absolute",
         left: `${obj.mapX}%`,
         top: `${obj.mapY}%`,
-        transform: "translate(-50%, 0)",
+        transform: `translate(-50%, ${highlighted ? `-${hereOffset}px` : "0"})`,
         zIndex: highlighted ? 20 : 10,
         pointerEvents: "none",
       }}
     >
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+        {/* "Here" badge above the circle for the player's assigned objective */}
+        {highlighted && (
+          <div
+            style={{
+              fontSize: isDesktop ? 9 : 7,
+              fontWeight: 700,
+              letterSpacing: "0.06em",
+              textTransform: "uppercase" as const,
+              color: "var(--color-gold)",
+              background: "rgba(8,10,16,0.85)",
+              border: "1px solid var(--color-gold)",
+              borderRadius: 3,
+              padding: "1px 5px",
+              boxShadow: "0 0 8px rgba(232,160,32,0.4)",
+              whiteSpace: "nowrap" as const,
+            }}
+          >
+            {t("here")}
+          </div>
+        )}
         {/* Circle — with pulsing ring when highlighted */}
         <div style={{ position: "relative", flexShrink: 0, width: S.circle, height: S.circle }}>
           {highlighted && (
