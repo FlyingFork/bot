@@ -2,7 +2,7 @@ import { getTranslations } from "next-intl/server";
 import { prisma } from "@tiles-survive/database";
 import { getCurrentUser } from "@/lib/server-auth";
 import { hasRole } from "@/lib/roles";
-import { formatPower } from "@/lib/power";
+import { formatCompactNumber, formatNumberFull, formatPower } from "@/lib/power";
 import { cn } from "@/lib/utils";
 import { getContributionScores, getUploadHealth, latestPowerFromEntryData, type ContributionScore } from "@/lib/phase4";
 import { UploadHealthChips } from "@/components/phase4/UploadHealthChips";
@@ -195,11 +195,13 @@ export default async function StatsPage() {
             <span className="text-[11px] font-normal tracking-[0.07em] uppercase text-muted">{t("raidYieldTitle")}</span>
             <div className="flex items-baseline gap-2 pt-0.5">
               <span className="text-2xl font-medium text-gold leading-none tabular-nums">
-                {lastRaidWater !== null ? lastRaidWater.toLocaleString() : t("noDataShort")}
+                {lastRaidWater !== null
+                  ? <span title={formatNumberFull(lastRaidWater)}>{formatCompactNumber(lastRaidWater)}</span>
+                  : t("noDataShort")}
               </span>
               {raidWaterDelta !== null && (
                 <span className={cn("text-[11px] font-semibold", raidWaterDelta >= 0 ? "text-success" : "text-danger")}>
-                  {raidWaterDelta >= 0 ? "+" : ""}{raidWaterDelta.toLocaleString()}
+                  <span title={formatNumberFull(raidWaterDelta)}>{raidWaterDelta >= 0 ? "+" : ""}{formatCompactNumber(raidWaterDelta)}</span>
                 </span>
               )}
             </div>

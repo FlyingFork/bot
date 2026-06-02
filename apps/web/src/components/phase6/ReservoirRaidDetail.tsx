@@ -18,6 +18,7 @@ import { PARTICIPANT_LIMIT, RESERVIST_LIMIT } from "@/lib/phase6-constants";
 import { ObjectivesTab as ObjectivesTabImpl } from "@/components/phase6/objectives/ObjectivesTab";
 import { MemberObjectivesMap } from "@/components/phase6/objectives/MemberObjectivesMap";
 import { getObjectiveName, type ObjectiveLang } from "@/lib/raid-objectives";
+import { formatCompactNumber, formatNumberFull, formatPower } from "@/lib/power";
 
 // ─────────────────────────────────────────────
 // Types
@@ -88,17 +89,8 @@ export type RaidDetailData = {
 // Helpers
 // ─────────────────────────────────────────────
 
-function formatPower(value: number) {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K`;
-  return String(value);
-}
-
 function formatWater(value: number) {
-  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B`;
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K`;
-  return String(value);
+  return formatCompactNumber(value);
 }
 
 function contactLabel(type: string | null, handle: string | null) {
@@ -148,9 +140,7 @@ function tierColorClass(tier: "high" | "mid" | "low" | "none") {
 
 function formatScore(value: number | null) {
   if (value === null) return "—";
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K`;
-  return String(value);
+  return formatCompactNumber(value);
 }
 
 // ─────────────────────────────────────────────
@@ -763,7 +753,7 @@ function ParticipantCard({
             <Droplet className="h-2.5 w-2.5 text-sky-400 shrink-0" />
             {t("reservoirRaid.lastWater")}:{" "}
             {participant.lastWaterCollected !== null
-              ? participant.lastWaterCollected.toLocaleString()
+              ? formatWater(participant.lastWaterCollected)
               : t("common.unknown")}
           </span>
           <span className="flex items-center gap-1 rounded bg-raised px-1.5 py-0.5 text-[10px] text-text-muted">
@@ -1182,7 +1172,7 @@ function ParticipantsTab({
                     <Droplet className="h-2.5 w-2.5 text-sky-400 shrink-0" />
                     {t("reservoirRaid.lastWater")}:{" "}
                     {participant.lastWaterCollected !== null
-                      ? participant.lastWaterCollected.toLocaleString()
+                      ? formatWater(participant.lastWaterCollected)
                       : t("common.unknown")}
                   </span>
                   <span className="flex items-center gap-1 rounded bg-surface px-1.5 py-0.5 text-[10px] text-text-muted">
@@ -1290,7 +1280,7 @@ function ParticipantsTab({
                         <span className="flex items-center gap-1 text-xs text-text-muted">
                           <Droplet className="h-3 w-3 text-sky-400 shrink-0" />
                           {participant.lastWaterCollected !== null
-                            ? participant.lastWaterCollected.toLocaleString()
+                            ? formatWater(participant.lastWaterCollected)
                             : t("common.unknown")}
                         </span>
                         <span className="flex items-center gap-1 text-xs text-text-muted">
@@ -1430,7 +1420,7 @@ function ResultsTab({
             {withData.map((p) => (
               <TableRow key={p.id}>
                 <TableCell className="font-medium text-text-primary">{p.username}</TableCell>
-                <TableCell>{p.waterCollected}</TableCell>
+                <TableCell title={p.waterCollected === null ? undefined : formatNumberFull(p.waterCollected)}>{p.waterCollected === null ? t("common.unknown") : formatWater(p.waterCollected)}</TableCell>
               </TableRow>
             ))}
             {noData.map((p) => (
@@ -1510,7 +1500,7 @@ function MemberRaidView({
             {currentSquad1 != null && (
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-text-muted">{t("registration.squad1Power")}</p>
-                <p className="text-sm text-text-primary">{currentSquad1.toLocaleString()}</p>
+                <p className="text-sm text-text-primary" title={formatNumberFull(currentSquad1)}>{formatPower(currentSquad1)}</p>
               </div>
             )}
           </div>

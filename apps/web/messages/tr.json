@@ -1334,6 +1334,7 @@
       "dayPatternSubtitle": "Tüm tamamlanmış düellolarda güne göre tarihsel galibiyet oranı.",
       "recordSuffix": "G/M/B",
       "pointValue": "{value}x puan",
+      "rank": "Sıra",
       "memberName": "Üye adı",
       "points": "Puan",
       "noDataUploaded": "Veri yüklenmedi",

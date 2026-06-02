@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { RaidObjectiveRow, RaidParticipantRow } from "@/components/phase6/ReservoirRaidDetail";
 import { TIER_COLORS, getObjectiveName, type ObjectiveLang } from "@/lib/raid-objectives";
-import { formatPower } from "@/lib/power";
+import { formatNumberFull, formatPower } from "@/lib/power";
 
 type Props = {
   objective: RaidObjectiveRow;
@@ -51,7 +51,7 @@ export function MarkerPopover({ objective: obj, participants, planLang, canEdit,
               <div>
                 <p className="text-sm font-semibold text-text-primary">{name}</p>
                 <p className="text-xs" style={{ color: tierColor?.text ?? "#6b7fa0" }}>
-                  Tier {obj.tier} · +{obj.waterRate.toLocaleString()}/min
+                  Tier {obj.tier} · +{formatNumberFull(obj.waterRate)}/min
                 </p>
               </div>
               <Popover.Close render={<button />} className="text-text-muted hover:text-text-primary">

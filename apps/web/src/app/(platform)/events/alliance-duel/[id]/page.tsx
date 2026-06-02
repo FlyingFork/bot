@@ -112,7 +112,7 @@ export default async function AllianceDuelDetailPage({ params }: Props) {
   // Perfect attendance: appeared in every data day
   let perfectAttendanceMembers: string[] = [];
   if (perDayMemberSets.length > 0) {
-    let perfectSet = new Set(perDayMemberSets[0]);
+    const perfectSet = new Set(perDayMemberSets[0]);
     for (const set of perDayMemberSets.slice(1)) {
       for (const mid of [...perfectSet]) {
         if (!set.has(mid)) perfectSet.delete(mid);

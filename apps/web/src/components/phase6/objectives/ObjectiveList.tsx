@@ -2,6 +2,7 @@
 
 import type { RaidObjectiveRow } from "@/components/phase6/ReservoirRaidDetail";
 import { TIER_COLORS, getObjectiveName, type ObjectiveLang } from "@/lib/raid-objectives";
+import { formatNumberFull } from "@/lib/power";
 
 type Props = {
   objectives: RaidObjectiveRow[];
@@ -36,7 +37,7 @@ export function ObjectiveList({ objectives, planLang, onSelect }: Props) {
 
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-text-primary truncate">{name}</p>
-              <p className="text-xs text-text-muted">+{obj.waterRate.toLocaleString()}/min</p>
+              <p className="text-xs text-text-muted">+{formatNumberFull(obj.waterRate)}/min</p>
             </div>
 
             {count > 0 && (

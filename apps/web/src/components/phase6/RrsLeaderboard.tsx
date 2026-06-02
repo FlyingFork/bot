@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/table";
 import { ExportButton } from "@/components/phase4/ExportButton";
 import { statusBadge, formatDate } from "@/components/phase2/Phase2Utils";
+import { formatCompactNumber, formatNumberFull } from "@/lib/power";
 
 export type RrsMember = {
   id: string;
@@ -42,7 +43,7 @@ export function RrsLeaderboard({
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [sortKey, setSortKey] = useState<SortKey>("rank");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  const now = Date.now();
+  const [now] = useState(() => new Date().getTime());
 
   function isStale(updatedAt: string | null) {
     if (!updatedAt) return false;
@@ -156,7 +157,7 @@ export function RrsLeaderboard({
                     {member.reservoirRaidScore !== null ? (
                       <>
                         <span className="text-sm font-bold text-text-primary">
-                          {member.reservoirRaidScore.toLocaleString()}
+                          <span title={formatNumberFull(member.reservoirRaidScore)}>{formatCompactNumber(member.reservoirRaidScore)}</span>
                         </span>
                         {isStale(member.reservoirRaidScoreUpdatedAt) && (
                           <span title={t("staleHint")}>
@@ -230,7 +231,7 @@ export function RrsLeaderboard({
                 <TableCell>
                   {member.reservoirRaidScore !== null ? (
                     <span className="font-semibold">
-                      {member.reservoirRaidScore.toLocaleString()}
+                      <span title={formatNumberFull(member.reservoirRaidScore)}>{formatCompactNumber(member.reservoirRaidScore)}</span>
                     </span>
                   ) : (
                     <span className="text-text-muted">{t("noScore")}</span>

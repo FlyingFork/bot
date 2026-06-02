@@ -1334,6 +1334,7 @@
       "dayPatternSubtitle": "Исторический процент побед по дням всех завершённых дуэлей.",
       "recordSuffix": "П/Пор/Н",
       "pointValue": "{value}x очков",
+      "rank": "Место",
       "memberName": "Участник",
       "points": "Очки",
       "noDataUploaded": "Данные не загружены",

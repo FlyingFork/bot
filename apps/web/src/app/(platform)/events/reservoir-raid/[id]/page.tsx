@@ -155,7 +155,7 @@ export default async function ReservoirRaidDetailPage({ params }: Props) {
     }
   });
 
-  const now = Date.now();
+  const now = new Date().getTime();
   const participantRows: RaidParticipantRow[] = plan.participants.map((p) => {
     const cs = p.memberId ? contributionScores.get(p.memberId) : undefined;
     const wd = p.memberId ? waterByMember.get(p.memberId) : undefined;

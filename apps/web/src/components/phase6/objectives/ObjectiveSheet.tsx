@@ -17,14 +17,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { compareParticipantsBySquad1Power, isEligibleRaidParticipant, participantSquad1Power, participantTotalPower } from "@/lib/raid-assignment";
-import { formatPower } from "@/lib/power";
+import { formatCompactNumber, formatNumberFull, formatPower } from "@/lib/power";
 import { TIER_COLORS, getObjectiveName, type ObjectiveLang } from "@/lib/raid-objectives";
 
 function formatWater(value: number) {
-  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B`;
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K`;
-  return String(value);
+  return formatCompactNumber(value);
 }
 
 type Assignment = RaidObjectiveRow["assignments"][number];
@@ -147,13 +144,13 @@ export function ObjectiveSheet({
                 {fullParticipant?.memberId && (
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {fullParticipant.lastWaterCollected !== null && (
-                      <span className="flex items-center gap-1 rounded-md bg-surface px-2 py-0.5 text-[11px] text-text-muted">
+                      <span className="flex items-center gap-1 rounded-md bg-surface px-2 py-0.5 text-[11px] text-text-muted" title={formatNumberFull(fullParticipant.lastWaterCollected)}>
                         <Droplet className="h-2.5 w-2.5 text-sky-400 shrink-0" />
-                        {fullParticipant.lastWaterCollected.toLocaleString()}
+                        {formatWater(fullParticipant.lastWaterCollected)}
                       </span>
                     )}
                     {fullParticipant.totalWaterCollected !== null && (
-                      <span className="flex items-center gap-1 rounded-md bg-surface px-2 py-0.5 text-[11px] text-text-muted">
+                      <span className="flex items-center gap-1 rounded-md bg-surface px-2 py-0.5 text-[11px] text-text-muted" title={formatNumberFull(fullParticipant.totalWaterCollected)}>
                         <Droplets className="h-2.5 w-2.5 text-sky-400 shrink-0" />
                         {formatWater(fullParticipant.totalWaterCollected)}
                       </span>
@@ -232,7 +229,7 @@ export function ObjectiveSheet({
               <div>
                 <SheetTitle className="text-sm font-semibold">{name}</SheetTitle>
                 <p className="mt-0.5 text-xs" style={{ color: tierColor?.text ?? "#6b7fa0" }}>
-                  {t("objectiveMeta", { tier: obj.tier, rate: obj.waterRate.toLocaleString() })}
+                  {t("objectiveMeta", { tier: obj.tier, rate: formatNumberFull(obj.waterRate) })}
                 </p>
               </div>
               <SheetClose className="text-text-muted hover:text-text-primary">

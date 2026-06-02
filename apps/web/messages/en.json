@@ -1336,6 +1336,7 @@
       "dayPatternSubtitle": "Historical win rate per day across all completed duels.",
       "recordSuffix": "W/L/D",
       "pointValue": "{value}x points",
+      "rank": "Rank",
       "memberName": "Member name",
       "side": "Side",
       "allSides": "All sides",

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import type { RaidObjectiveRow, RaidParticipantRow } from "@/components/phase6/ReservoirRaidDetail";
 import { compareObjectivesByPriority, getAutoAssignDefaultCounts, FIXED_OBJECTIVE_COUNTS } from "@/lib/raid-assignment";
 import { TIER_COLORS, getObjectiveName, type ObjectiveLang } from "@/lib/raid-objectives";
+import { formatNumberFull } from "@/lib/power";
 
 type Props = {
   objectives: RaidObjectiveRow[];
@@ -104,7 +105,7 @@ export function AutoAssignDialog({ objectives, participants, planLang, onApply }
                   <div key={obj.id}>
                     {showTierHeader && (
                       <p className="text-[10px] font-semibold uppercase tracking-wide mt-2 mb-1" style={{ color: tierColor?.text }}>
-                        {t("exportColumns.tier")} {obj.tier} - +{obj.waterRate.toLocaleString()}/min
+                        {t("exportColumns.tier")} {obj.tier} - +{formatNumberFull(obj.waterRate)}/min
                       </p>
                     )}
                     <div className="flex items-center justify-between gap-3 rounded px-2 py-1.5 hover:bg-raised">

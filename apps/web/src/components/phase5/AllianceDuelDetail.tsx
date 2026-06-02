@@ -14,11 +14,10 @@ import { ExportButton } from "@/components/phase4/ExportButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatCompactNumber, formatNumberFull } from "@/lib/power";
 
 function fmtPts(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
-  if (n >= 1_000) return `${Math.round(n / 1_000)}K`;
-  return String(n);
+  return formatCompactNumber(n);
 }
 
 function DualRangeSlider({ max, low, high, onLow, onHigh }: {
@@ -138,9 +137,17 @@ function DayCard({ day, duelId, userMemberId }: { day: DuelDayRow; duelId: strin
   const [high, setHigh] = useState(maxPts);
   const [side, setSide] = useState("all");
   const [query, setQuery] = useState("");
-  const visibleScores = day.scores.filter((s) => {
+  const sideScopedScores = useMemo(
+    () => side === "all" ? day.scores : day.scores.filter((score) => score.side === side),
+    [day.scores, side],
+  );
+  const sideRanks = useMemo(() => {
+    const ranks = new Map<string, number>();
+    sideScopedScores.forEach((score, index) => ranks.set(score.id, index + 1));
+    return ranks;
+  }, [sideScopedScores]);
+  const visibleScores = sideScopedScores.filter((s) => {
     if (s.points < low || s.points > high) return false;
-    if (side !== "all" && s.side !== side) return false;
     if (query && !`${s.memberName} ${s.playerName}`.toLowerCase().includes(query.toLowerCase())) return false;
     return true;
   });
@@ -167,11 +174,11 @@ function DayCard({ day, duelId, userMemberId }: { day: DuelDayRow; duelId: strin
           <div className="grid gap-2 rounded-md border border-border-dim bg-raised p-3 sm:grid-cols-2">
             <div>
               <p className="text-xs text-text-muted">{t("allyPoints")}</p>
-              <p className="text-lg font-bold text-text-primary">{fmtPts(day.allyTotalPoints)}</p>
+              <p className="text-lg font-bold text-text-primary" title={formatNumberFull(day.allyTotalPoints)}>{fmtPts(day.allyTotalPoints)}</p>
             </div>
             <div>
               <p className="text-xs text-text-muted">{t("enemyPoints")}</p>
-              <p className="text-lg font-bold text-text-primary">{fmtPts(day.enemyTotalPoints)}</p>
+              <p className="text-lg font-bold text-text-primary" title={formatNumberFull(day.enemyTotalPoints)}>{fmtPts(day.enemyTotalPoints)}</p>
             </div>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
@@ -200,9 +207,10 @@ function DayCard({ day, duelId, userMemberId }: { day: DuelDayRow; duelId: strin
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t("side")}</TableHead>
+                  <TableHead className="w-14">{t("rank")}</TableHead>
+                  <TableHead className="w-24">{t("side")}</TableHead>
                   <TableHead>{t("memberName")}</TableHead>
-                  <TableHead>{t("points")}</TableHead>
+                  <TableHead className="text-right">{t("points")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -210,15 +218,16 @@ function DayCard({ day, duelId, userMemberId }: { day: DuelDayRow; duelId: strin
                   const isMe = userMemberId != null && score.memberId === userMemberId;
                   return (
                     <TableRow key={score.id} className={isMe ? "bg-gold/5" : undefined}>
+                      <TableCell className="text-text-muted tabular-nums">#{sideRanks.get(score.id)}</TableCell>
                       <TableCell>{t(`sides.${score.side}`)}</TableCell>
                       <TableCell className={isMe ? "font-bold text-gold" : "font-medium text-text-primary"}>{score.memberName}</TableCell>
-                      <TableCell className={isMe ? "font-bold text-gold" : undefined}>{score.points}</TableCell>
+                      <TableCell className={`${isMe ? "font-bold text-gold" : ""} text-right tabular-nums`} title={formatNumberFull(score.points)}>{fmtPts(score.points)}</TableCell>
                     </TableRow>
                   );
                 })}
                 {visibleScores.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={3} className="py-4 text-center text-text-muted">{t("noScoresInRange")}</TableCell>
+                    <TableCell colSpan={4} className="py-4 text-center text-text-muted">{t("noScoresInRange")}</TableCell>
                   </TableRow>
                 )}
               </TableBody>

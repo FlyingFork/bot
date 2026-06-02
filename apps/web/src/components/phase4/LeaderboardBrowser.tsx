@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -16,6 +15,7 @@ import {
   displayEntryValue,
   type Phase4LeaderboardType,
 } from "@/lib/phase4-shared";
+import { formatNumberFull } from "@/lib/power";
 
 export type LeaderboardSnapshotRow = {
   id: string;
@@ -44,6 +44,16 @@ function dateLabel(value: string) {
 function SortIcon({ active, dir }: { active: boolean; dir: "asc" | "desc" }) {
   if (!active) return <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-40" />;
   return dir === "asc" ? <ArrowUp className="h-3 w-3 shrink-0" /> : <ArrowDown className="h-3 w-3 shrink-0" />;
+}
+
+function entryValueLabel(value: unknown): string {
+  return displayEntryValue(value, { compactNumbers: true });
+}
+
+function entryValueTitle(value: unknown): string | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return formatNumberFull(value);
+  if (typeof value === "bigint") return formatNumberFull(value);
+  return undefined;
 }
 
 export function LeaderboardBrowser({
@@ -238,7 +248,9 @@ export function LeaderboardBrowser({
                 {fields.filter((f) => f !== "rank" && f !== "playerName").map((field) => (
                   <div key={field} className="flex items-center justify-between text-xs">
                     <span className="text-text-muted">{fieldT(field)}</span>
-                    <span className="font-medium text-text-primary">{displayEntryValue(entry.data[field])}</span>
+                    <span className="font-medium text-text-primary" title={entryValueTitle(entry.data[field])}>
+                      {entryValueLabel(entry.data[field])}
+                    </span>
                   </div>
                 ))}
                 {entry.memberName && (
@@ -270,7 +282,9 @@ export function LeaderboardBrowser({
                 <TableRow key={entry.id}>
                   {fields.map((field) => (
                     <TableCell key={field}>
-                      {field === "rank" ? entry.rank ?? "" : field === "playerName" ? entry.playerName : displayEntryValue(entry.data[field])}
+                      {field === "rank" ? entry.rank ?? "" : field === "playerName" ? entry.playerName : (
+                        <span title={entryValueTitle(entry.data[field])}>{entryValueLabel(entry.data[field])}</span>
+                      )}
                     </TableCell>
                   ))}
                   <TableCell>{entry.memberName ?? common("none")}</TableCell>

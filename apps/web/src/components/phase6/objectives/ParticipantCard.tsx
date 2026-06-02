@@ -7,20 +7,15 @@ import { Badge } from "@/components/ui/badge";
 import type { RaidObjectiveRow, RaidParticipantRow } from "@/components/phase6/ReservoirRaidDetail";
 import { participantSquad1Power, participantTotalPower } from "@/lib/raid-assignment";
 import { TIER_COLORS, getObjectiveName, type ObjectiveLang } from "@/lib/raid-objectives";
-import { formatPower } from "@/lib/power";
+import { formatCompactNumber, formatNumberFull, formatPower } from "@/lib/power";
 
 function formatWater(value: number) {
-  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B`;
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K`;
-  return String(value);
+  return formatCompactNumber(value);
 }
 
 function formatScore(value: number | null) {
   if (value === null) return null;
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K`;
-  return String(value);
+  return formatCompactNumber(value);
 }
 
 function tierColorClass(tier: "high" | "mid" | "low" | "none") {
@@ -117,13 +112,13 @@ export function ParticipantCard({ participant: p, assignment, planLang, canEdit 
         {(p.lastWaterCollected !== null || p.totalWaterCollected !== null) && (
           <div className="flex items-center gap-1.5 flex-wrap">
             {p.lastWaterCollected !== null && (
-              <span className="flex items-center gap-1 rounded-md bg-raised px-2 py-0.5 text-[11px] text-text-muted">
+              <span className="flex items-center gap-1 rounded-md bg-raised px-2 py-0.5 text-[11px] text-text-muted" title={formatNumberFull(p.lastWaterCollected)}>
                 <Droplet className="h-2.5 w-2.5 text-sky-400 shrink-0" />
-                {p.lastWaterCollected.toLocaleString()}
+                {formatWater(p.lastWaterCollected)}
               </span>
             )}
             {p.totalWaterCollected !== null && (
-              <span className="flex items-center gap-1 rounded-md bg-raised px-2 py-0.5 text-[11px] text-text-muted">
+              <span className="flex items-center gap-1 rounded-md bg-raised px-2 py-0.5 text-[11px] text-text-muted" title={formatNumberFull(p.totalWaterCollected)}>
                 <Droplets className="h-2.5 w-2.5 text-sky-400 shrink-0" />
                 {formatWater(p.totalWaterCollected)}
               </span>

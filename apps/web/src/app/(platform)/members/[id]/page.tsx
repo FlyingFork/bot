@@ -14,6 +14,7 @@ import type { MemberSummary } from "@/components/phase2/types";
 import { EmptyState, formatDate, roleLabel, statusBadge } from "@/components/phase2/Phase2Utils";
 import { getContributionScores, latestPowerFromEntryData } from "@/lib/phase4";
 import { RRS_STALE_THRESHOLD_MS } from "@/lib/phase6-constants";
+import { formatCompactNumber, formatNumberFull } from "@/lib/power";
 import { LEADERBOARD_VALUE_FIELDS, isPhase4LeaderboardType, numberFromEntryData } from "@/lib/phase4-shared";
 import {
   MemberProfilePhase4,
@@ -167,7 +168,7 @@ export default async function MemberProfilePage({ params, searchParams }: Props)
   const recorderMap = new Map(recorders.map((u) => [u.id, u.username ?? u.name ?? null]));
 
   const rrsIsStale = member.reservoirRaidScore !== null && member.reservoirRaidScoreUpdatedAt !== null
-    ? Date.now() - member.reservoirRaidScoreUpdatedAt.getTime() > RRS_STALE_THRESHOLD_MS
+    ? new Date().getTime() - member.reservoirRaidScoreUpdatedAt.getTime() > RRS_STALE_THRESHOLD_MS
     : false;
 
   const serializedMember = jsonSafe(member) as MemberSummary & {
@@ -282,7 +283,7 @@ export default async function MemberProfilePage({ params, searchParams }: Props)
           {member.reservoirRaidScore !== null ? (
             <div className="flex items-center gap-2">
               <span className="text-2xl font-bold text-text-primary tabular-nums">
-                {member.reservoirRaidScore.toLocaleString()}
+                <span title={formatNumberFull(member.reservoirRaidScore)}>{formatCompactNumber(member.reservoirRaidScore)}</span>
               </span>
               {rrsIsStale && (
                 <span className="flex items-center gap-1 text-xs text-cn-warning">
@@ -309,7 +310,7 @@ export default async function MemberProfilePage({ params, searchParams }: Props)
                   {scoreHistory.map((entry) => (
                     <TableRow key={entry.id}>
                       <TableCell>{formatDate(entry.recordedAt)}</TableCell>
-                      <TableCell className="font-semibold tabular-nums">{entry.score.toLocaleString()}</TableCell>
+                      <TableCell className="font-semibold tabular-nums" title={formatNumberFull(entry.score)}>{formatCompactNumber(entry.score)}</TableCell>
                       <TableCell className="text-text-secondary">
                         {entry.recordedById ? (recorderMap.get(entry.recordedById) ?? "—") : "—"}
                       </TableCell>

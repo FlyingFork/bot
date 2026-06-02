@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/table";
 import { DataCard } from "@/components/ui/data-card";
 import { ExportButton } from "@/components/phase4/ExportButton";
-import { formatPower, formatPowerFull } from "@/lib/power";
+import { formatCompactNumber, formatNumberFull, formatPower, formatPowerFull } from "@/lib/power";
 import type { Phase4LeaderboardType } from "@/lib/phase4-shared";
 
 export type ProfileMember = {
@@ -94,6 +94,7 @@ export function MemberProfilePhase4({
   const common = useTranslations("phase2.common");
   const powerRows = useMemo(() => chartRows(powerPoints, members, "value"), [members, powerPoints]);
   const rankTypes = Array.from(new Set(rankPoints.map((point) => point.type)));
+  const numberLabel = (value: number | null) => value === null ? common("none") : formatCompactNumber(value);
 
   return (
     <div className="space-y-5">
@@ -206,13 +207,13 @@ export function MemberProfilePhase4({
                   </p>
                   <p className="mt-0.5 text-xs text-text-muted">{dateLabel(row.week)}</p>
                 </div>
-                <span className="shrink-0 text-sm font-semibold text-cn-cyan">{row.total}</span>
+                <span className="shrink-0 text-sm font-semibold text-cn-cyan" title={formatNumberFull(row.total)}>{formatCompactNumber(row.total)}</span>
               </div>
               <div className="mt-3 grid grid-cols-3 gap-2">
                 {row.days.map((points, index) => (
                   <div key={index} className="rounded-[4px] border border-border-line bg-surface px-2 py-1.5">
                     <p className="text-[10px] font-bold uppercase text-text-muted">{t("day", { day: index + 1 })}</p>
-                    <p className="mt-0.5 text-xs font-medium text-text-primary">{points ?? common("none")}</p>
+                    <p className="mt-0.5 text-xs font-medium text-text-primary" title={points === null ? undefined : formatNumberFull(points)}>{numberLabel(points)}</p>
                   </div>
                 ))}
               </div>
@@ -249,8 +250,8 @@ export function MemberProfilePhase4({
                   <TableCell>{members.find((member) => member.id === row.memberId)?.username}</TableCell>
                   <TableCell>{dateLabel(row.week)}</TableCell>
                   <TableCell>{row.opponent || common("unknown")}</TableCell>
-                  {row.days.map((points, index) => <TableCell key={index}>{points ?? common("none")}</TableCell>)}
-                  <TableCell>{row.total}</TableCell>
+                  {row.days.map((points, index) => <TableCell key={index} title={points === null ? undefined : formatNumberFull(points)}>{numberLabel(points)}</TableCell>)}
+                  <TableCell title={formatNumberFull(row.total)}>{formatCompactNumber(row.total)}</TableCell>
                   <TableCell>{row.outcome ?? common("none")}</TableCell>
                 </TableRow>
               ))}
@@ -274,7 +275,7 @@ export function MemberProfilePhase4({
                   </p>
                   <p className="mt-0.5 text-xs text-text-muted">{dateLabel(row.date)}</p>
                 </div>
-                <span className="shrink-0 text-sm font-semibold text-cn-cyan">{row.waterCollected ?? common("none")}</span>
+                <span className="shrink-0 text-sm font-semibold text-cn-cyan" title={row.waterCollected === null ? undefined : formatNumberFull(row.waterCollected)}>{numberLabel(row.waterCollected)}</span>
               </div>
               <div className="mt-3 flex items-center justify-between gap-3 text-xs">
                 <span className="text-text-muted">{t("status")}</span>
@@ -301,7 +302,7 @@ export function MemberProfilePhase4({
                   <TableCell>{members.find((member) => member.id === row.memberId)?.username}</TableCell>
                   <TableCell>{dateLabel(row.date)}</TableCell>
                   <TableCell>{t(`raidStatus.${row.status}`)}</TableCell>
-                  <TableCell>{row.waterCollected ?? common("none")}</TableCell>
+                  <TableCell title={row.waterCollected === null ? undefined : formatNumberFull(row.waterCollected)}>{numberLabel(row.waterCollected)}</TableCell>
                 </TableRow>
               ))}
               {raidRows.length === 0 && <TableRow><TableCell colSpan={4} className="py-8 text-center text-text-muted">{common("noDataYet")}</TableCell></TableRow>}

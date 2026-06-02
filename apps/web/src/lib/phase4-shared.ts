@@ -1,3 +1,5 @@
+import { formatCompactNumber } from "@/lib/power";
+
 export const PHASE4_LEADERBOARD_TYPES = [
   "SOLO_POWER",
   "BATTLE_VANGUARD",
@@ -61,9 +63,16 @@ export function numberFromEntryData(data: unknown, fields: string[]): number | n
   return null;
 }
 
-export function displayEntryValue(value: unknown): string {
+type DisplayEntryValueOptions = {
+  compactNumbers?: boolean;
+};
+
+export function displayEntryValue(value: unknown, options: DisplayEntryValueOptions = {}): string {
   if (value === null || value === undefined || value === "") return "";
-  if (typeof value === "bigint") return value.toString();
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return options.compactNumbers ? formatCompactNumber(value) : String(value);
+  }
+  if (typeof value === "bigint") return options.compactNumbers ? formatCompactNumber(value) : value.toString();
   if (typeof value === "object") return JSON.stringify(value);
   return String(value);
 }
