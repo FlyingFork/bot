@@ -32,6 +32,9 @@ jobs:
       - name: Lint
         run: npm run lint --workspace=@tiles-survive/web
 
+      - name: Generate Prisma client
+        run: npm run db:generate
+
       - name: Generate next-env.d.ts
         working-directory: apps/web
         run: |
