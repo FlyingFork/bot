@@ -32,6 +32,9 @@ jobs:
       - name: Lint
         run: npm run lint --workspace=@tiles-survive/web
 
+      - name: Write database .env
+        run: echo "${{ secrets.DEV_VPS_ENV }}" > packages/database/.env
+
       - name: Generate Prisma client
         run: npm run db:generate
 
