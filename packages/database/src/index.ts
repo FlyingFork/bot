@@ -25,4 +25,5 @@ export type {
   MemberNameHistory, LeaderboardSnapshot, LeaderboardEntry,
   Notification, Season, AllianceDuelInstance, AllianceDuelDay,
   AllianceDuelScore, ReservoirRaidObjective,
+  BoostType, BoostTask, BoostAction,
 } from "./generated/prisma/client";

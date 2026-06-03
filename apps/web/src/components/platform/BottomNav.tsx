@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 import {
   LayoutDashboard, Swords, Droplets, Bell, Menu, X,
   Users, BarChart2, Trophy, Upload, ShieldCheck,
-  ListChecks, UserCog, ScrollText, Settings2, CalendarRange, Gauge,
+  ListChecks, UserCog, ScrollText, Settings2, CalendarRange, Gauge, Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { hasRole } from "@/lib/roles";
@@ -102,7 +102,16 @@ export function BottomNav({ role, unreadCount = 0 }: BottomNavProps) {
               {isR4Plus && <DrawerLink href="/members" icon={Users} label={t("members")} close={() => setDrawerOpen(false)} />}
               {isR4Plus && <DrawerLink href="/leaderboards" icon={Trophy} label={t("leaderboards")} close={() => setDrawerOpen(false)} />}
               {isR4Plus && <DrawerLink href="/scores/reservoir-raid" icon={Gauge} label={t("rrsScores")} close={() => setDrawerOpen(false)} />}
-              {isAdmin && <DrawerLink href="/seasons" icon={CalendarRange} label={t("seasons")} close={() => setDrawerOpen(false)} />}
+              {isAdmin ? (
+                <>
+                  <DrawerLink href="/seasons" icon={CalendarRange} label={t("seasons")} close={() => setDrawerOpen(false)} />
+                  <div className="pl-4">
+                    <DrawerLink href="/seasons/boosts" icon={Zap} label={t("boosts")} close={() => setDrawerOpen(false)} />
+                  </div>
+                </>
+              ) : (
+                <DrawerLink href="/seasons/boosts" icon={Zap} label={t("boosts")} close={() => setDrawerOpen(false)} />
+              )}
               {isR4Plus && <DrawerLink href="/upload" icon={Upload} label={t("upload")} close={() => setDrawerOpen(false)} />}
               {isAdmin && (
                 <>

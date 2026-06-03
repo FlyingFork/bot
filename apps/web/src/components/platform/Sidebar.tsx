@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import {
   LayoutDashboard, Users, BarChart2, Trophy, CalendarRange,
   Upload, Swords, Droplets, Bell, ShieldCheck, ListChecks,
-  UserCog, ScrollText, Settings2, Gauge,
+  UserCog, ScrollText, Settings2, Gauge, Zap,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { hasRole } from "@/lib/roles";
@@ -48,7 +48,6 @@ export function Sidebar({ role, allianceName, unreadCount = 0 }: SidebarProps) {
           <BarChart2 size={16} strokeWidth={1.5} className="shrink-0" />
           {t("stats")}
         </NavLink>
-
         {isR4Plus && (
           <NavLink href="/leaderboards">
             <Trophy size={16} strokeWidth={1.5} className="shrink-0" />
@@ -63,10 +62,21 @@ export function Sidebar({ role, allianceName, unreadCount = 0 }: SidebarProps) {
           </NavLink>
         )}
 
-        {isAdmin && (
-          <NavLink href="/seasons">
-            <CalendarRange size={16} strokeWidth={1.5} className="shrink-0" />
-            {t("seasons")}
+        {isAdmin ? (
+          <>
+            <NavLink href="/seasons" exact>
+              <CalendarRange size={16} strokeWidth={1.5} className="shrink-0" />
+              {t("seasons")}
+            </NavLink>
+            <NavLink href="/seasons/boosts" subItem>
+              <Zap size={14} strokeWidth={1.5} className="shrink-0" />
+              {t("boosts")}
+            </NavLink>
+          </>
+        ) : (
+          <NavLink href="/seasons/boosts">
+            <Zap size={16} strokeWidth={1.5} className="shrink-0" />
+            {t("boosts")}
           </NavLink>
         )}
 

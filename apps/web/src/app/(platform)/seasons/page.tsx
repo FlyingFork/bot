@@ -4,6 +4,7 @@ import { prisma } from "@tiles-survive/database";
 import { getCurrentUser } from "@/lib/server-auth";
 import { PageHeader } from "@/components/ui/page-header";
 import { SeasonsManager, type SeasonRow } from "@/components/phase4/SeasonsManager";
+import { SeasonsSubTabs } from "@/components/phase4/SeasonsSubTabs";
 
 export default async function SeasonsPage() {
   const t = await getTranslations("phase4.seasons");
@@ -18,6 +19,7 @@ export default async function SeasonsPage() {
   return (
     <div className="space-y-6">
       <PageHeader title={t("title")} subtitle={t("subtitle")} />
+      <SeasonsSubTabs isAdmin={user?.role === "admin"} />
       <SeasonsManager
         seasons={seasons.map((season) => ({
           id: season.id,

@@ -294,6 +294,7 @@ model user {
   submittedChanges PendingChange[] @relation("PendingChangeSubmitter")
   reviewedChanges  PendingChange[] @relation("PendingChangeReviewer")
   auditLogs        AuditLog[]
+  boostsApplied    BoostAction[]
 
   @@map("user")
 }
@@ -382,6 +383,13 @@ model AllianceSettings {
   contributionWeightDuelParticipation Int @default(35) @map("contrib_weight_duel")
   contributionWeightRaidParticipation Int @default(35) @map("contrib_weight_raid")
 
+  boostPriorityMode                   String @default("TIME") @map("boost_priority_mode") // TIME, POWER, COMBINED
+  boostWeightPower                    Float  @default(0.5)  @map("boost_weight_power")
+  boostWeightTime                     Float  @default(0.5)  @map("boost_weight_time")
+  boostMinDaysConstruction            Int    @default(0)    @map("boost_min_days_construction")
+  boostMinDaysResearch                Int    @default(0)    @map("boost_min_days_research")
+  boostCooldownHours                  Int    @default(48)   @map("boost_cooldown_hours")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -452,6 +460,7 @@ model AllianceMember {
   nameHistory        MemberNameHistory[]
   leaderboardEntries LeaderboardEntry[]
   duelScores         AllianceDuelScore[]
+  boostTasks         BoostTask[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -745,4 +754,45 @@ model ReservoirRaidScoreHistory {
 
   @@index([memberId, recordedAt])
   @@map("reservoir_raid_score_history")
+}
+
+// ─────────────────────────────────────────────
+// SEASONAL BOOSTS
+// ─────────────────────────────────────────────
+
+enum BoostType {
+  CONSTRUCTION
+  RESEARCH
+}
+
+model BoostTask {
+  id                    String        @id @default(cuid())
+  memberId              String        @map("member_id")
+  member                AllianceMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  type                  BoostType
+  totalDurationSeconds  BigInt        @map("total_duration_seconds")
+  boostSecondsApplied   BigInt        @default(0) @map("boost_seconds_applied")
+  startedAt             DateTime      @default(now()) @map("started_at")
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+  completedAt           DateTime?     @map("completed_at")
+  
+  boosts                BoostAction[]
+
+  @@map("boost_tasks")
+}
+
+model BoostAction {
+  id               String      @id @default(cuid())
+  taskId           String?     @map("task_id")
+  task             BoostTask?  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  type             BoostType?
+  appliedById      String      @map("applied_by_id")
+  appliedBy        user        @relation(fields: [appliedById], references: [id], onDelete: Cascade)
+  boostPercentage  Int         @map("boost_percentage") // 5, 10, 15
+  secondsReduced   BigInt      @map("seconds_reduced")
+  appliedAt        DateTime    @default(now()) @map("applied_at")
+  cooldownEndsAt   DateTime    @map("cooldown_ends_at")
+
+  @@map("boost_actions")
 }
