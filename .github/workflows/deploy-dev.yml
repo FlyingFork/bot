@@ -32,6 +32,11 @@ jobs:
       - name: Lint
         run: npm run lint --workspace=@tiles-survive/web
 
+      - name: Generate next-env.d.ts
+        working-directory: apps/web
+        run: |
+          printf '/// <reference types="next" />\n/// <reference types="next/image-types/global" />\n\n// NOTE: This file should not be edited\n// see https://nextjs.org/docs/app/api-reference/config/typescript for more information.\n' > next-env.d.ts
+
       - name: Type check
         run: npm run typecheck --workspace=@tiles-survive/web
 
