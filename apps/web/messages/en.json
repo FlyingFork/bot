@@ -635,6 +635,24 @@
     }
   },
   "phase2": {
+    "adminTestPanel": {
+      "title": "Admin Test Panel",
+      "description": "Tools for sending test notifications to Discord/Telegram.",
+      "platform": "Select Platform",
+      "targetType": "Recipient Type",
+      "linkedUser": "Linked Account",
+      "rawId": "Manual by ID",
+      "recipientUser": "Recipient (user)",
+      "rawDiscordId": "Manual: Discord User ID",
+      "rawTelegramId": "Manual: Telegram Chat ID",
+      "messageText": "Message Content",
+      "messagePlaceholder": "Type your test message content here...",
+      "sendBtn": "Send Test Message",
+      "sending": "Sending message...",
+      "successToast": "Test message sent successfully!",
+      "noLinkedUsers": "No users found with linked accounts for this platform.",
+      "errorEmptyMessage": "Message text cannot be empty."
+    },
     "common": {
       "none": "None",
       "no": "No",
@@ -748,6 +766,25 @@
         "en": "English",
         "ru": "Russian",
         "tr": "Turkish"
+      },
+      "integrations": {
+        "title": "Messenger Integrations",
+        "codeGenerated": "Verification code generated!",
+        "confirmUnlink": "Are you sure you want to disconnect the {type} integration?",
+        "unlinkedSuccess": "Disconnected from {type}.",
+        "connectedAs": "Connected as:",
+        "discordInstructionsTitle": "How to link Discord",
+        "discordInstructionsBody": "For secure linking, copy the command below and DM it to our bot in Discord:",
+        "tokenExpiryHint": "Code is valid for 10 minutes.",
+        "discordPromo": "Connect Discord to instantly receive push DMs when players boost your tasks or when admins reset your cooldowns!",
+        "unlinkBtn": "Disconnect",
+        "linkBtn": "Connect",
+        "telegramInstructionsTitle": "How to link Telegram",
+        "telegramInstructionsBody": "For secure linking, click the button below to start the bot and automatically submit your code:",
+        "openBotLink": "Open Telegram Bot",
+        "telegramManualCode": "Or manually send the command:",
+        "telegramPromo": "Connect Telegram to get real-time notifications about your alliance boosts!",
+        "integrationsFootnote": "These integrations are only used for sending direct notification alerts about your alliance boosts. Your data is stored securely and never shared with third parties."
       }
     },
     "verifications": {

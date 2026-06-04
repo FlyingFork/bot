@@ -23,13 +23,20 @@ registerReactionEvents(client);
 registerThreadEvents(client);
 registerChannelEvents(client);
 
+import { startTelegramPolling } from "./services/telegramPolling.js";
+startTelegramPolling();
+
 process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("unhandledRejection", (error) => {
   logger.error({ error }, "unhandled promise rejection");
 });
 
-await client.login(config.discordToken);
+if (config.discordToken) {
+  await client.login(config.discordToken);
+} else {
+  logger.warn("Discord token is missing. Discord bot will not start, but Telegram and other services will remain active.");
+}
 
 async function shutdown(signal: string): Promise<void> {
   logger.info({ signal }, "shutting down");

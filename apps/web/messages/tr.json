@@ -635,6 +635,24 @@
     }
   },
   "phase2": {
+    "adminTestPanel": {
+      "title": "Admin Test Paneli",
+      "description": "Discord/Telegram'a test bildirimleri göndermek için araçlar.",
+      "platform": "Platform Seçin",
+      "targetType": "Alıcı Türü",
+      "linkedUser": "Bağlı Hesap",
+      "rawId": "Manuel (ID ile)",
+      "recipientUser": "Alıcı (kullanıcı)",
+      "rawDiscordId": "Manuel: Discord Kullanıcı ID'si",
+      "rawTelegramId": "Manuel: Telegram Sohbet ID'si",
+      "messageText": "Mesaj İçeriği",
+      "messagePlaceholder": "Test mesajı içeriğini buraya yazın...",
+      "sendBtn": "Test Mesajı Gönder",
+      "sending": "Mesaj gönderiliyor...",
+      "successToast": "Test mesajı başarıyla gönderildi!",
+      "noLinkedUsers": "Bu platform için bağlı hesabı olan kullanıcı bulunamadı.",
+      "errorEmptyMessage": "Mesaj içeriği boş olamaz."
+    },
     "common": {
       "none": "Yok",
       "no": "Hayır",
@@ -748,6 +766,25 @@
         "en": "İngilizce",
         "ru": "Rusça",
         "tr": "Türkçe"
+      },
+      "integrations": {
+        "title": "Mesajlaşma Entegrasyonları",
+        "codeGenerated": "Doğrulama kodu oluşturuldu!",
+        "confirmUnlink": "{type} entegrasyonunun bağlantısını kesmek istediğinizden emin misiniz?",
+        "unlinkedSuccess": "{type} bağlantısı kesildi.",
+        "connectedAs": "Bağlı hesap:",
+        "discordInstructionsTitle": "Discord Nasıl Bağlanır",
+        "discordInstructionsBody": "Güvenli bağlantı için aşağıdaki komutu kopyalayın ve Discord'daki botumuza DM atın:",
+        "tokenExpiryHint": "Kod 10 dakika boyunca geçerlidir.",
+        "discordPromo": "Oyuncular görevlerinizi desteklediğinde veya yöneticiler bekleme sürenizi sıfırladığında anında bildirim almak için Discord'u bağlayın!",
+        "unlinkBtn": "Bağlantıyı Kes",
+        "linkBtn": "Bağlan",
+        "telegramInstructionsTitle": "Telegram Nasıl Bağlanır",
+        "telegramInstructionsBody": "Güvenli bağlantı için aşağıdaki butona tıklayarak botu başlatın ve kodunuzu otomatik olarak gönderin:",
+        "openBotLink": "Telegram Botunu Aç",
+        "telegramManualCode": "Veya manuel olarak şu komutu gönderin:",
+        "telegramPromo": "İttifak destekleriniz hakkında gerçek zamanlı bildirimler almak için Telegram'ı bağlayın!",
+        "integrationsFootnote": "Bu entegrasyonlar yalnızca ittifak destekleriniz hakkında doğrudan bildirim uyarıları göndermek için kullanılır. Verileriniz güvenli bir şekilde saklanır ve asla üçüncü şahıslarla paylaşılmaz."
       }
     },
     "verifications": {

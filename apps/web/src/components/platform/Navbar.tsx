@@ -5,6 +5,7 @@ import { notificationCopy, type NotificationTemplate } from "@/lib/notifications
 import { NavBreadcrumb } from "@/components/ui/breadcrumb";
 import { UserMenu } from "./UserMenu";
 import { ThemeToggle } from "./ThemeToggle";
+import { AdminTestPanelTrigger } from "./AdminTestPanelTrigger";
 
 interface NavbarProps {
   allianceName: string;
@@ -64,6 +65,7 @@ export async function Navbar({ allianceName, username, role, unreadCount = 0, no
         <NotificationBell unreadCount={unreadCount} notifications={formatted} />
 
         <LanguageSwitcher />
+        {role === "admin" && <AdminTestPanelTrigger />}
         <ThemeToggle />
         <UserMenu username={username} role={role} />
       </div>

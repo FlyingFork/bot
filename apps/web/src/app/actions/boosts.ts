@@ -3,10 +3,25 @@
 import { prisma, BoostType } from "@tiles-survive/database";
 import { getCurrentUser, requireUser, requireAdmin } from "@/lib/server-auth";
 import { revalidatePath } from "next/cache";
+import { notifyUser } from "@/app/services/notifications";
 
 // Duration converter utility
 function toSeconds(days: number, hours: number, minutes: number): number {
   return (days * 24 * 3600) + (hours * 3600) + (minutes * 60);
+}
+
+function formatDuration(totalSeconds: number): string {
+  if (totalSeconds <= 0) return "Завершено";
+  const days = Math.floor(totalSeconds / (24 * 3600));
+  const hours = Math.floor((totalSeconds % (24 * 3600)) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+
+  const parts = [];
+  if (days > 0) parts.push(`${days}д`);
+  if (hours > 0 || days > 0) parts.push(`${hours}ч`);
+  parts.push(`${minutes}м`);
+
+  return parts.join(" ");
 }
 
 /**
@@ -118,6 +133,13 @@ export async function resetMemberCooldown(memberId: string, type: BoostType) {
     },
   });
 
+  // Notify the user about their cooldown reset
+  const typeLabel = type === "CONSTRUCTION" ? "Строительство" : "Исследования";
+  await notifyUser(
+    member.user.id,
+    `⚡️ Администратор сбросил ваш кулдаун на <b>${typeLabel}</b>. Ваш навык снова готов к использованию!`
+  ).catch((err) => console.error("Failed to notify user on reset cooldown:", err));
+
   revalidatePath("/seasons/boosts");
   return { success: true };
 }
@@ -137,7 +159,7 @@ export async function applyBoost(taskId: string, percentage: number) {
   // 1. Retrieve the target task
   const task = await prisma.boostTask.findUnique({
     where: { id: taskId },
-    include: { member: true },
+    include: { member: { include: { user: true } } },
   });
 
   if (!task || task.completedAt) {
@@ -268,6 +290,17 @@ export async function applyBoost(taskId: string, percentage: number) {
       });
     }
   });
+
+  // Notify the task owner about the applied boost
+  if (task.member.user) {
+    const applierName = user.displayUsername || user.username || user.name || "Участник";
+    const taskTypeLabel = task.type === "CONSTRUCTION" ? "Строительство" : "Исследования";
+    const formattedRemaining = formatDuration(Number(newRemaining));
+    await notifyUser(
+      task.member.user.id,
+      `🚀 Игрок <b>${applierName}</b> применил к вашей задаче по бусту (<b>${taskTypeLabel}</b>) ускорение <b>+${percentage}%</b>!<br/>Оставшееся время задачи: <b>${formattedRemaining}</b>.`
+    ).catch((err) => console.error("Failed to notify user on apply boost:", err));
+  }
 
   revalidatePath("/seasons/boosts");
   return { success: true };

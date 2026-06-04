@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ProfileLanguageForm } from "@/components/phase2/ProfileLanguageForm";
 import { roleLabel, statusBadge, TextLink } from "@/components/phase2/Phase2Utils";
 import { type Locale, locales, defaultLocale } from "@/i18n/config";
+import { ProfileIntegrations } from "@/components/phase2/ProfileIntegrations";
 
 export default async function ProfilePage() {
   const t = await getTranslations("phase2.profile");
@@ -65,6 +66,14 @@ export default async function ProfilePage() {
         <div className="rounded-md border border-border-dim bg-raised p-3 text-sm text-text-muted">
           {t("passwordResetNote")}
         </div>
+      </section>
+
+      <section className="rounded-md border border-border-subtle bg-surface p-4 space-y-4">
+        <h3 className="text-sm font-bold text-text-primary">{t("integrations.title")}</h3>
+        <ProfileIntegrations
+          initialDiscord={{ id: user?.discordId, username: user?.discordUsername }}
+          initialTelegram={{ id: user?.telegramId, username: user?.telegramUsername }}
+        />
       </section>
     </div>
   );

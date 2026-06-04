@@ -13,7 +13,8 @@ export function registerInteractionEvents(client: Client): void {
     try {
       if (interaction.isChatInputCommand()) {
         const member = interaction.member;
-        if (!interaction.guild || !member || !isAdmin(member as GuildMember)) {
+        const isLinkCommand = interaction.commandName === "link";
+        if (!isLinkCommand && (!interaction.guild || !member || !isAdmin(member as GuildMember))) {
           await interaction.reply({ content: "You do not have permission to use this command.", ephemeral: true });
           return;
         }
