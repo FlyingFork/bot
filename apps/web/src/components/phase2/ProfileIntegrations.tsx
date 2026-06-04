@@ -38,8 +38,9 @@ export function ProfileIntegrations({ initialDiscord, initialTelegram }: Profile
         }
         toast.success(t("codeGenerated"));
       }
-    } catch (e: any) {
-      toast.error(e.message || "Failed to generate token");
+    } catch (e) {
+      const err = e as Error;
+      toast.error(err.message || "Failed to generate token");
     } finally {
       setLoading(false);
     }
@@ -62,8 +63,9 @@ export function ProfileIntegrations({ initialDiscord, initialTelegram }: Profile
         }
         toast.success(t("unlinkedSuccess", { type }));
       }
-    } catch (e: any) {
-      toast.error(e.message || "Failed to unlink");
+    } catch (e) {
+      const err = e as Error;
+      toast.error(err.message || "Failed to unlink");
     } finally {
       setLoading(false);
     }

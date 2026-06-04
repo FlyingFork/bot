@@ -60,6 +60,7 @@ export function AdminTestPanel({ open, onOpenChange }: AdminTestPanelProps) {
   // Load users when open or targetType/platform changes
   useEffect(() => {
     if (open && targetType === "USER") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoadingUsers(true);
       getUsersWithIntegrations()
         .then((res) => {
@@ -113,9 +114,10 @@ export function AdminTestPanel({ open, onOpenChange }: AdminTestPanelProps) {
       } else {
         toast.error(res.error || "Failed to send notification");
       }
-    } catch (error: any) {
-      console.error(error);
-      toast.error(error.message || "An unexpected error occurred");
+    } catch (error) {
+      const err = error as Error;
+      console.error(err);
+      toast.error(err.message || "An unexpected error occurred");
     } finally {
       setSending(false);
     }

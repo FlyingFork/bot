@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import { useState, useEffect } from "react";
 import { 
@@ -62,7 +63,6 @@ function formatSeconds(totalSeconds: number): string {
 
 export function BoostManagerClient({ initialData, userRole }: BoostManagerClientProps) {
   const t = useTranslations("phase2.boostManager");
-  const common = useTranslations("phase2.common");
 
   const [data, setData] = useState(initialData);
   const [isSubmitOpen, setIsSubmitOpen] = useState(false);
@@ -198,8 +198,9 @@ export function BoostManagerClient({ initialData, userRole }: BoostManagerClient
         setMinutes(0);
         await refreshData();
       }
-    } catch (error: any) {
-      toast.error(error.message || "Произошла ошибка при создании задачи");
+    } catch (error) {
+      const err = error as Error;
+      toast.error(err.message || "Произошла ошибка при создании задачи");
     } finally {
       setLoading(false);
     }
@@ -217,8 +218,9 @@ export function BoostManagerClient({ initialData, userRole }: BoostManagerClient
         toast.success(t("toastSuccessCancel"));
         await refreshData();
       }
-    } catch (error: any) {
-      toast.error(error.message || "Не удалось отменить задачу");
+    } catch (error) {
+      const err = error as Error;
+      toast.error(err.message || "Не удалось отменить задачу");
     } finally {
       setLoading(false);
     }
@@ -237,8 +239,9 @@ export function BoostManagerClient({ initialData, userRole }: BoostManagerClient
         toast.success(t("toastSuccessReset", { type: typeLabel, username }));
         await refreshData();
       }
-    } catch (error: any) {
-      toast.error(error.message || "Не удалось сбросить кулдаун");
+    } catch (error) {
+      const err = error as Error;
+      toast.error(err.message || "Не удалось сбросить кулдаун");
     } finally {
       setLoading(false);
     }
@@ -256,8 +259,9 @@ export function BoostManagerClient({ initialData, userRole }: BoostManagerClient
         toast.success(t("toastSuccessBoost", { pct: percentage }));
         await refreshData();
       }
-    } catch (error: any) {
-      toast.error(error.message || "Не удалось применить буст");
+    } catch (error) {
+      const err = error as Error;
+      toast.error(err.message || "Не удалось применить буст");
     } finally {
       setLoading(false);
     }
@@ -274,8 +278,9 @@ export function BoostManagerClient({ initialData, userRole }: BoostManagerClient
         setIsSettingsOpen(false);
         await refreshData();
       }
-    } catch (error: any) {
-      toast.error(error.message || "Не удалось сохранить настройки");
+    } catch (error) {
+      const err = error as Error;
+      toast.error(err.message || "Не удалось сохранить настройки");
     } finally {
       setLoading(false);
     }
@@ -292,8 +297,9 @@ export function BoostManagerClient({ initialData, userRole }: BoostManagerClient
         setIsSyncOpen(false);
         await refreshData();
       }
-    } catch (error: any) {
-      toast.error(error.message || "Не удалось синхронизировать КД");
+    } catch (error) {
+      const err = error as Error;
+      toast.error(err.message || "Не удалось синхронизировать КД");
     } finally {
       setLoading(false);
     }
@@ -916,7 +922,7 @@ export function BoostManagerClient({ initialData, userRole }: BoostManagerClient
                 <label className="text-xs font-semibold text-muted">{t("modalSettingsCriteria")}</label>
                 <select
                   value={prioMode}
-                  onChange={(e) => setPrioMode(e.target.value as any)}
+                  onChange={(e) => setPrioMode(e.target.value as "TIME" | "POWER" | "COMBINED")}
                   className="w-full h-9 rounded-md border border-border-line bg-surface-2 px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-gold"
                 >
                   <option value="TIME">{t("modalSettingsOptTime")}</option>
