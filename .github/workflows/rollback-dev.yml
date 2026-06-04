@@ -1,0 +1,68 @@
+name: Rollback Dev Website
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: "Commit SHA to roll back to (from git log on the develop branch)"
+        required: true
+
+env:
+  NODE_VERSION: "24"
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.commit_sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Upload files to VPS
+        run: |
+          rsync -avz --delete \
+            --exclude ".git" \
+            --exclude ".github" \
+            --exclude "node_modules" \
+            --exclude "**/.next" \
+            --exclude "**/dist" \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            ./ "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.DEV_VPS_APP_PATH }}/"
+
+      - name: Install, build, restart
+        run: |
+          ssh -i ~/.ssh/deploy_key "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" << 'ENDSSH'
+            set -e
+
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+
+            cd "${{ secrets.DEV_VPS_APP_PATH }}"
+
+            echo "${{ secrets.DEV_VPS_ENV }}" > .env
+            echo "${{ secrets.DEV_VPS_ENV }}" > apps/web/.env
+            echo "${{ secrets.DEV_VPS_ENV }}" > packages/database/.env
+
+            npm run db:generate
+
+            npm ci
+
+            npm run build --workspace=@tiles-survive/web
+
+            sudo /bin/systemctl restart "${{ secrets.DEV_SERVICE_NAME }}"
+            sudo /bin/systemctl is-active "${{ secrets.DEV_SERVICE_NAME }}"
+          ENDSSH
